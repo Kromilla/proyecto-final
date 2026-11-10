@@ -1,0 +1,121 @@
+# ═════════════════════════════════════════════════════════════════════
+# Proyecto Final — Bases de Datos NoSQL (Universidad del Magdalena)
+# Catálogo de biblioteca: API Gateway + Lambda + DynamoDB + Redis + CDK
+#
+# Tres contenedores en la MISMA red interna (docker-compose-net), que se
+# comunican por nombre de servicio: emulador, redis y cdk-dev.
+# Basado en el proyecto base oficial: https://gitlab.com/caov_unimag/bd_no_sql
+#
+# Nota: se omite la clave `version: "3.9"` de la presentación porque
+# Docker Compose v2 la considera obsoleta (solo muestra un aviso).
+# ═════════════════════════════════════════════════════════════════════
+services:
+
+  # ─────────────────────────────────────────────────────────────────────
+  # CONTENEDOR 1: Emulador AWS (LocalStack o MiniStack)
+  # Cambia solo la línea "image:" para elegir. Ambos exponen el puerto 4566.
+  # ─────────────────────────────────────────────────────────────────────
+  emulador:
+    # Opción A — LocalStack. Fijado a 4.14: es la última versión gratuita;
+    # las posteriores exigen LOCALSTACK_AUTH_TOKEN (sin él sale con código 55).
+    image: localstack/localstack:4.14
+    # Opción B — MiniStack (más ligero):
+    # image: ministack/ministack
+    container_name: emulador
+    ports:
+      - "4566:4566"
+    environment:
+      # apigateway, lambda y dynamodb son los servicios del proyecto;
+      # cloudformation, iam, s3, ssm, sts y logs los usa `cdklocal bootstrap/deploy`.
+      SERVICES: "apigateway,lambda,dynamodb,cloudformation,iam,s3,ssm,sts,logs"
+      # Valor de la presentación. En LocalStack 4.x las Lambdas siempre corren
+      # en contenedores Docker y esta variable ya no tiene efecto; se deja
+      # por compatibilidad con el material del curso.
+      LAMBDA_EXECUTOR: docker
+      DOCKER_HOST: unix:///var/run/docker.sock
+      # Las Lambdas corren en contenedores que lanza el emulador a través de
+      # docker.sock. Para que resuelvan "redis" por nombre, se conectan a la
+      # misma red del compose (nombre fijo, definido al final del archivo).
+      LAMBDA_DOCKER_NETWORK: docker-compose-net
+      DEBUG: "1"
+    volumes:
+      # El emulador necesita el socket de Docker para crear los contenedores Lambda
+      - /var/run/docker.sock:/var/run/docker.sock
+      # LocalStack 4.x guarda su estado en /var/lib/localstack
+      # (la ruta /tmp/localstack de la presentación es de versiones antiguas).
+      # Con MiniStack: ./ministack-data:/tmp/ministack
+      - ./emulador-data:/var/lib/localstack
+    networks:
+      default:
+        # cdklocal sube los assets a S3 con estilo virtual-host (<bucket>.<host>).
+        # Estos alias hacen que esos nombres apunten al emulador dentro de la red.
+        aliases:
+          - s3.localhost.localstack.cloud
+          - cdk-hnb659fds-assets-000000000000-us-east-1.s3.localhost.localstack.cloud
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ─────────────────────────────────────────────────────────────────────
+  # CONTENEDOR 2: Redis (caché in-memory)
+  # ─────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    # --appendonly yes → persistencia AOF: el caché sobrevive a reinicios
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ─────────────────────────────────────────────────────────────────────
+  # CONTENEDOR 3: Entorno de desarrollo CDK (Python 3.11 + CDK + cdklocal)
+  # ─────────────────────────────────────────────────────────────────────
+  cdk-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cdk-dev
+    volumes:
+      - ./app:/app
+    working_dir: /app
+    depends_on:
+      emulador:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Redirige boto3 y cdklocal al emulador
+      AWS_ENDPOINT_URL: http://emulador:4566
+      # cdklocal exige un endpoint de S3 explícito si AWS_ENDPOINT_URL está
+      # definido (ver los aliases de red del servicio emulador).
+      AWS_ENDPOINT_URL_S3: http://s3.localhost.localstack.cloud:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+      # Las Lambdas se conectan a Redis por nombre de servicio
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    # Se mantiene vivo para entrar con `docker compose exec cdk-dev bash`
+    stdin_open: true
+    tty: true
+    command: bash
+
+networks:
+  default:
+    # Nombre fijo (no depende del nombre de la carpeta) para poder usarlo
+    # en LAMBDA_DOCKER_NETWORK. Corresponde a «network» docker-compose-net
+    # del diagrama de despliegue.
+    name: docker-compose-net
+
+volumes:
+  redis_data:

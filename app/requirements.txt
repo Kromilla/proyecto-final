@@ -1,0 +1,14 @@
+# ── AWS CDK (infraestructura como código) ────────────────────────────
+aws-cdk-lib>=2.100.0
+constructs>=10.0.0
+
+# ── Dependencias de runtime de las Lambdas (boto3, botocore, redis) ───
+# Se definen en un solo lugar para que desarrollo, tests y la Lambda
+# Layer usen exactamente las mismas versiones.
+-r layers/dependencias/requirements.txt
+
+# ── Tests ─────────────────────────────────────────────────────────────
+pytest>=7.4.0
+pytest-mock>=3.12.0
+moto[dynamodb]>=5.0.0     # mock de DynamoDB para tests unitarios
+fakeredis>=2.20.0          # mock de Redis para tests unitarios

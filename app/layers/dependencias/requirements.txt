@@ -1,0 +1,16 @@
+# ─────────────────────────────────────────────────────────────────────
+# Dependencias de runtime de las Lambdas (Lambda Layer "dependencias").
+# El stack las instala con pip durante `cdk synth/deploy` y las publica
+# como layer compartida por /items y /health.
+#
+# app/requirements.txt incluye este archivo, así los tests usan
+# exactamente las mismas versiones que las Lambdas.
+# ─────────────────────────────────────────────────────────────────────
+
+# AWS SDK (el runtime ya trae uno, pero se fija la versión para que
+# coincida con la usada en desarrollo y tests)
+boto3==1.43.126
+botocore==1.43.126
+
+# Cliente Redis (no viene en el runtime de Lambda)
+redis==8.1.0

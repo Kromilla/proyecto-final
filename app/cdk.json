@@ -1,0 +1,20 @@
+{
+  "app": "python infra/app.py",
+  "watch": {
+    "include": ["**"],
+    "exclude": [
+      "README.md",
+      "cdk*.json",
+      "**/__pycache__/**",
+      "**/*.egg-info/**",
+      "**/node_modules/**",
+      "cdk.out/**",
+      "tests/**"
+    ]
+  },
+  "context": {
+    "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
+    "@aws-cdk/core:checkSecretUsage": true,
+    "@aws-cdk/aws-iam:minimizePolicies": true
+  }
+}

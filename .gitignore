@@ -1,0 +1,7 @@
+emulador-data/
+ministack-data/
+__pycache__/
+.pytest_cache/
+app/cdk.out/
+graphify-out/
+.env
