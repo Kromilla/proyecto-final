@@ -1,0 +1,2022 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Biblioteca Unimag</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%237a1f35%22/%3E%3Cpath d=%22M9 7h11a3 3 0 0 1 3 3v15H12a3 3 0 0 1-3-3z%22 fill=%22none%22 stroke=%22%23f4d58d%22 stroke-width=%222%22/%3E%3C/svg%3E">
+<meta name="description" content="Frontend del proyecto final de Bases de Datos NoSQL: API Gateway + Lambda + DynamoDB + Redis.">
+<style>
+:root{
+  --tinta:#1b2540; --tinta-2:#26345a; --tinta-3:#34467a;
+  --vino:#7b2337; --vino-2:#5f1a2a; --oro:#b48a4a; --oro-2:#d9b878;
+  --papel:#f6f1e6; --papel-2:#fbf8f1; --hoja:#fffdf8; --linea:#e4dac6; --linea-2:#efe7d6;
+  --texto:#2a2620; --suave:#6f6656; --verde:#2f6b4f; --verde-bg:#e3f0e8;
+  --rojo:#a3283a; --rojo-bg:#f8e3e5; --ambar:#9a6a12; --ambar-bg:#f8edd5;
+  --sombra:0 1px 2px rgba(40,30,10,.06),0 4px 16px rgba(40,30,10,.06);
+  --sombra-2:0 10px 40px rgba(20,20,40,.25);
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,"Times New Roman",serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --radio:12px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font-family:var(--sans);color:var(--texto);background:var(--papel);
+  background-image:radial-gradient(rgba(180,138,74,.07) 1px,transparent 1px);background-size:18px 18px;
+  font-size:15px;line-height:1.45}
+h1,h2,h3,h4{font-family:var(--serif);font-weight:600;color:var(--tinta);margin:0}
+a{color:var(--vino)}
+svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.app{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
+
+/* ── Barra lateral ── */
+.lateral{background:linear-gradient(180deg,var(--tinta) 0%,#141c33 100%);color:#e9e3d4;display:flex;flex-direction:column;
+  position:sticky;top:0;height:100vh;z-index:30;border-right:3px solid var(--oro)}
+.marca{display:flex;gap:12px;align-items:center;padding:22px 20px 18px;border-bottom:1px solid rgba(255,255,255,.08)}
+.marca .sello{width:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,var(--vino),var(--vino-2));
+  display:grid;place-items:center;box-shadow:inset 0 0 0 1px rgba(217,184,120,.5)}
+.marca .sello svg{width:24px;height:24px;stroke:var(--oro-2)}
+.marca b{font-family:var(--serif);font-size:1.2rem;color:#fff;display:block;letter-spacing:.3px}
+.marca small{color:#b9b09c;font-size:.75rem}
+.nav{padding:14px 10px;display:flex;flex-direction:column;gap:2px;flex:1;overflow:auto}
+.nav .titulo-grupo{font-size:.68rem;text-transform:uppercase;letter-spacing:1.4px;color:#8f8775;padding:12px 12px 6px}
+.nav a{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:9px;color:#d8d1c0;text-decoration:none;font-size:.94rem;transition:.15s}
+.nav a:hover{background:rgba(255,255,255,.06);color:#fff}
+.nav a.activo{background:rgba(180,138,74,.18);color:#fff;box-shadow:inset 3px 0 0 var(--oro-2)}
+.nav a .contador{margin-left:auto;background:rgba(255,255,255,.1);border-radius:20px;padding:1px 8px;font-size:.72rem}
+.nav a .contador.alerta{background:var(--rojo);color:#fff}
+.config{padding:14px 16px 18px;border-top:1px solid rgba(255,255,255,.08);font-size:.8rem}
+.config label{display:block;color:#b9b09c;margin-bottom:6px;font-size:.72rem;text-transform:uppercase;letter-spacing:1px}
+.config .fila{display:flex;gap:6px}
+.config input{flex:1;min-width:0;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:7px;padding:7px 9px;font-size:.78rem;font-family:var(--mono)}
+.config input::placeholder{color:#8f8775}
+.config button{background:var(--oro);color:var(--tinta);border:0;border-radius:7px;padding:0 10px;font-weight:600;cursor:pointer}
+.estado-api{display:flex;align-items:center;gap:8px;margin-top:10px;color:#c9c1ae}
+.punto{width:9px;height:9px;border-radius:50%;background:#777;box-shadow:0 0 0 3px rgba(255,255,255,.06)}
+.punto.ok{background:#4fbf87}.punto.mal{background:#e0566b}.punto.medio{background:#e8b04a}
+.creditos{color:#8f8775;font-size:.7rem;margin-top:12px;line-height:1.4}
+
+/* ── Contenido ── */
+.contenido{min-width:0;display:flex;flex-direction:column}
+.barra{display:flex;align-items:center;gap:14px;padding:18px 32px;background:rgba(251,248,241,.85);backdrop-filter:blur(6px);
+  border-bottom:1px solid var(--linea);position:sticky;top:0;z-index:20}
+.barra h1{font-size:1.55rem}
+.barra .sub{color:var(--suave);font-size:.85rem}
+.barra .acciones{margin-left:auto;display:flex;gap:8px;align-items:center}
+.menu-movil{display:none;background:none;border:0;color:var(--tinta);cursor:pointer;padding:4px}
+.menu-movil svg{width:26px;height:26px}
+main{padding:28px 32px 60px;max-width:1400px;width:100%}
+.vista{display:none;animation:aparecer .25s ease}
+.vista.activa{display:block}
+@keyframes aparecer{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ── Componentes ── */
+.tarjeta{background:var(--hoja);border:1px solid var(--linea);border-radius:var(--radio);box-shadow:var(--sombra);padding:20px}
+.tarjeta>h3{font-size:1.1rem;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.tarjeta>h3 .der{margin-left:auto}
+.rejilla{display:grid;gap:18px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.g-panel{grid-template-columns:2fr 1fr}
+.metrica{position:relative;overflow:hidden;padding:18px 20px}
+.metrica .icono{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;margin-bottom:12px}
+.metrica .icono svg{width:22px;height:22px}
+.metrica .valor{font-family:var(--serif);font-size:2.1rem;font-weight:600;color:var(--tinta);line-height:1}
+.metrica .etiqueta{color:var(--suave);font-size:.85rem;margin-top:6px}
+.metrica .nota{font-size:.75rem;color:var(--suave);margin-top:4px}
+.metrica::after{content:"";position:absolute;right:-30px;top:-30px;width:110px;height:110px;border-radius:50%;background:currentColor;opacity:.05}
+.c-tinta{color:var(--tinta)}.c-tinta .icono{background:#e6e9f2}
+.c-vino{color:var(--vino)}.c-vino .icono{background:#f4e2e5}
+.c-oro{color:var(--ambar)}.c-oro .icono{background:var(--ambar-bg)}
+.c-verde{color:var(--verde)}.c-verde .icono{background:var(--verde-bg)}
+.c-rojo{color:var(--rojo)}.c-rojo .icono{background:var(--rojo-bg)}
+
+.boton{display:inline-flex;align-items:center;gap:8px;border:1px solid transparent;border-radius:9px;padding:9px 16px;font:inherit;font-size:.9rem;
+  font-weight:600;cursor:pointer;background:var(--tinta);color:#fff;transition:.15s;white-space:nowrap}
+.boton:hover{background:var(--tinta-3)}
+.boton:disabled{opacity:.55;cursor:not-allowed}
+.boton.vino{background:var(--vino)}.boton.vino:hover{background:var(--vino-2)}
+.boton.oro{background:var(--oro);color:var(--tinta)}
+.boton.claro{background:var(--hoja);color:var(--tinta);border-color:var(--linea)}.boton.claro:hover{background:var(--papel)}
+.boton.peligro{background:var(--hoja);color:var(--rojo);border-color:#e6b9bf}.boton.peligro:hover{background:var(--rojo-bg)}
+.boton.peq{padding:6px 11px;font-size:.8rem;border-radius:7px}
+.boton svg.i{width:16px;height:16px}
+.campo{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.campo label{font-size:.78rem;font-weight:600;color:var(--suave);text-transform:uppercase;letter-spacing:.6px}
+.campo label .req{color:var(--vino)}
+.campo small{color:var(--suave);font-size:.75rem}
+input,select,textarea{font:inherit;color:var(--texto);background:#fff;border:1px solid var(--linea);border-radius:9px;padding:9px 12px;outline:none;transition:.15s;width:100%}
+input:focus,select:focus,textarea:focus{border-color:var(--oro);box-shadow:0 0 0 3px rgba(180,138,74,.18)}
+textarea{min-height:80px;resize:vertical}
+.fila-campos{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.fila-campos.tres{grid-template-columns:repeat(3,minmax(0,1fr))}
+.buscador{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--linea);border-radius:12px;padding:4px 6px 4px 14px;box-shadow:var(--sombra);flex:1;min-width:240px}
+.buscador input{border:0;box-shadow:none;padding:10px 4px;font-size:1rem;background:transparent}
+.buscador svg{color:var(--suave)}
+.herramientas{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.chip{border:1px solid var(--linea);background:var(--hoja);border-radius:30px;padding:6px 14px;font-size:.85rem;cursor:pointer;color:var(--tinta);display:inline-flex;gap:8px;align-items:center;transition:.15s}
+.chip:hover{border-color:var(--oro)}
+.chip .n{background:var(--papel);border-radius:20px;padding:0 7px;font-size:.72rem;color:var(--suave)}
+.chip.activo{background:var(--tinta);color:#fff;border-color:var(--tinta)}
+.chip.activo .n{background:rgba(255,255,255,.18);color:#fff}
+.chip .muestra{width:10px;height:10px;border-radius:3px}
+.distintivo{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:20px;font-size:.72rem;font-weight:700;letter-spacing:.3px;white-space:nowrap}
+.d-cache{background:#e0f1e8;color:#21603f}.d-dynamodb{background:#f7e6cf;color:#8a5208}
+.d-ok{background:var(--verde-bg);color:var(--verde)}.d-mal{background:var(--rojo-bg);color:var(--rojo)}
+.d-aviso{background:var(--ambar-bg);color:var(--ambar)}.d-neutro{background:#ece7dc;color:#5d5547}
+.d-tinta{background:#e3e7f1;color:var(--tinta)}
+
+/* ── Libros ── */
+.estante{display:grid;gap:22px 18px;grid-template-columns:repeat(auto-fill,minmax(165px,1fr))}
+.libro{cursor:pointer;display:flex;flex-direction:column;gap:10px;outline:none}
+.portada{position:relative;aspect-ratio:2/3;border-radius:3px 8px 8px 3px;overflow:hidden;color:#fff;
+  box-shadow:inset 6px 0 0 rgba(0,0,0,.18),inset 8px 0 0 rgba(255,255,255,.08),0 2px 3px rgba(0,0,0,.15),0 10px 20px -6px rgba(40,25,10,.35);
+  transition:transform .2s,box-shadow .2s;display:flex;flex-direction:column;padding:16px 14px 14px 22px}
+.libro:hover .portada,.libro:focus .portada{transform:translateY(-4px) rotate(-.6deg);box-shadow:inset 6px 0 0 rgba(0,0,0,.18),0 18px 28px -8px rgba(40,25,10,.45)}
+.portada::before{content:"";position:absolute;inset:10px 10px 10px 18px;border:1px solid rgba(255,255,255,.28);border-radius:3px;pointer-events:none}
+.portada::after{content:"";position:absolute;inset:0;background:linear-gradient(105deg,rgba(255,255,255,.14) 0%,transparent 30%,rgba(0,0,0,.12) 100%);pointer-events:none}
+.portada .cat{font-size:.6rem;text-transform:uppercase;letter-spacing:1.6px;opacity:.85;text-align:center}
+.portada .orn{width:36px;height:1px;background:rgba(255,255,255,.55);margin:10px auto}
+.portada .tit{font-family:var(--serif);font-size:1.05rem;line-height:1.2;text-align:center;font-weight:600;
+  display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;text-shadow:0 1px 2px rgba(0,0,0,.3)}
+.portada .aut{margin-top:auto;font-size:.72rem;text-align:center;font-style:italic;opacity:.92}
+.portada .anio{font-size:.65rem;text-align:center;opacity:.7;margin-top:2px}
+.portada .cinta{position:absolute;top:0;right:12px;width:16px;height:30px;background:var(--oro-2);clip-path:polygon(0 0,100% 0,100% 100%,50% 78%,0 100%);z-index:2}
+.libro .pie b{display:block;font-family:var(--serif);font-size:.98rem;color:var(--tinta);line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.libro .pie span{display:block;font-size:.8rem;color:var(--suave);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.libro .pie .estado{margin-top:6px}
+.portada.grande{width:190px;flex:none;padding:22px 18px 18px 28px}
+.portada.grande .tit{font-size:1.3rem}
+
+/* ── Tablas ── */
+.tabla-env{overflow-x:auto;border:1px solid var(--linea);border-radius:var(--radio);background:var(--hoja)}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th{text-align:left;font-size:.72rem;text-transform:uppercase;letter-spacing:.8px;color:var(--suave);font-weight:700;padding:12px 14px;background:var(--papel-2);border-bottom:1px solid var(--linea);white-space:nowrap}
+td{padding:12px 14px;border-bottom:1px solid var(--linea-2);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tbody tr{transition:background .12s}
+tbody tr:hover{background:#fbf6ea}
+tr.clic{cursor:pointer}
+tr.vencido{background:var(--rojo-bg)}
+tr.vencido:hover{background:#f4d6d9}
+tr.vencido td:first-child{box-shadow:inset 3px 0 0 var(--rojo)}
+.celda-libro{display:flex;align-items:center;gap:10px}
+.mini-portada{width:26px;height:38px;border-radius:2px 4px 4px 2px;flex:none;box-shadow:inset 3px 0 0 rgba(0,0,0,.2),0 1px 3px rgba(0,0,0,.2)}
+.celda-libro b{font-family:var(--serif);color:var(--tinta);font-weight:600}
+.celda-libro small,.tenue{color:var(--suave);font-size:.78rem;display:block}
+td.tenue{display:table-cell}
+.mono{font-family:var(--mono);font-size:.8rem}
+.nw{white-space:nowrap}
+.form-linea{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end}
+.form-linea .campo{margin:0}
+.acciones-fila{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:.8rem;flex:none;font-family:var(--serif)}
+.paginacion{display:flex;align-items:center;gap:10px;justify-content:flex-end;margin-top:14px;color:var(--suave);font-size:.85rem}
+.pestanas{display:flex;gap:4px;background:var(--papel-2);border:1px solid var(--linea);border-radius:11px;padding:4px;width:max-content;max-width:100%;overflow-x:auto}
+.pestana{border:0;background:none;padding:8px 14px;border-radius:8px;cursor:pointer;font:inherit;font-size:.88rem;color:var(--suave);font-weight:600;display:flex;gap:7px;align-items:center;white-space:nowrap}
+.pestana.activa{background:var(--hoja);color:var(--tinta);box-shadow:var(--sombra)}
+.pestana .n{font-size:.7rem;background:var(--papel);border-radius:10px;padding:0 6px}
+.pestana.activa.rojo{color:var(--rojo)}
+
+/* ── Estados ── */
+.vacio{text-align:center;padding:44px 20px;color:var(--suave)}
+.vacio svg{width:54px;height:54px;stroke:var(--oro);stroke-width:1.2;margin-bottom:10px}
+.vacio b{display:block;font-family:var(--serif);color:var(--tinta);font-size:1.1rem;margin-bottom:4px}
+.cargando{display:flex;align-items:center;justify-content:center;gap:12px;padding:40px;color:var(--suave)}
+.giro{width:22px;height:22px;border-radius:50%;border:3px solid var(--linea);border-top-color:var(--vino);animation:girar .8s linear infinite;flex:none}
+.boton .giro{width:15px;height:15px;border-width:2px;border-color:rgba(255,255,255,.35);border-top-color:#fff}
+.boton.claro .giro,.boton.peligro .giro{border-color:var(--linea);border-top-color:var(--vino)}
+@keyframes girar{to{transform:rotate(360deg)}}
+.esqueleto{background:linear-gradient(90deg,#efe8da 25%,#f7f2e7 50%,#efe8da 75%);background-size:200% 100%;animation:brillo 1.2s infinite;border-radius:8px}
+@keyframes brillo{to{background-position:-200% 0}}
+.aviso{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:10px;font-size:.86rem;background:var(--ambar-bg);color:#6e4c0d;border:1px solid #ecd9ae}
+.aviso.info{background:#e8ecf5;color:var(--tinta-2);border-color:#cfd7ea}
+
+/* ── Barras y rankings ── */
+.barra-progreso{height:12px;border-radius:12px;background:#ece5d6;overflow:hidden;position:relative}
+.barra-progreso>span{position:absolute;inset:0 auto 0 0;border-radius:12px;background:linear-gradient(90deg,var(--verde),#4c9a72);transition:width .6s ease}
+.barra-progreso.grande{height:22px}
+.barra-progreso.vino>span{background:linear-gradient(90deg,var(--vino),#a8475b)}
+.leyenda{display:flex;justify-content:space-between;font-size:.8rem;color:var(--suave);margin-top:6px}
+.ranking{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.ranking li{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;cursor:pointer;padding:4px;border-radius:8px}
+.ranking li:hover{background:var(--papel)}
+.ranking .pos{font-family:var(--serif);font-weight:700;color:var(--oro);font-size:1.2rem;text-align:center}
+.ranking .nom{min-width:0}
+.ranking .nom b{display:block;font-family:var(--serif);color:var(--tinta);font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ranking .nom .barra-progreso{height:5px;margin-top:5px}
+.ranking .num{font-weight:700;color:var(--tinta);font-size:.9rem}
+.anillo{width:150px;height:150px;border-radius:50%;display:grid;place-items:center;margin:0 auto;position:relative}
+.anillo::before{content:"";position:absolute;inset:16px;background:var(--hoja);border-radius:50%}
+.anillo div{position:relative;text-align:center}
+.anillo b{font-family:var(--serif);font-size:2rem;color:var(--tinta);display:block;line-height:1}
+.anillo small{color:var(--suave);font-size:.75rem}
+.datos{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:.9rem;margin:0}
+.datos dt{color:var(--suave);font-size:.78rem;text-transform:uppercase;letter-spacing:.5px;padding-top:2px}
+.datos dd{margin:0;color:var(--texto);word-break:break-word}
+.kv{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}
+.kv div{background:var(--papel-2);border:1px solid var(--linea-2);border-radius:10px;padding:10px 12px}
+.kv b{display:block;font-family:var(--serif);font-size:1.35rem;color:var(--tinta)}
+.kv span{font-size:.72rem;color:var(--suave);text-transform:uppercase;letter-spacing:.5px}
+.fila-cola{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--linea-2);border-radius:10px;background:#fff;margin-bottom:8px}
+.fila-cola .turno{width:30px;height:30px;border-radius:50%;background:var(--tinta);color:#fff;display:grid;place-items:center;font-weight:700;font-size:.8rem;flex:none;font-family:var(--serif)}
+.fila-cola.fantasma{opacity:.8;border-style:dashed;background:var(--papel-2)}
+.fila-cola.fantasma .turno{background:var(--suave)}
+.cola-titulo{display:flex;align-items:center;gap:10px;margin:16px 0 10px}
+.tablero-filas{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+.fila-libro{display:flex;gap:12px;align-items:center;width:100%;text-align:left;padding:12px;border:1px solid var(--linea);border-radius:12px;background:#fff;cursor:pointer;font:inherit;color:inherit}
+.fila-libro:hover,.fila-libro:focus-visible{border-color:var(--oro);background:var(--papel-2)}
+.fila-libro .txt{flex:1;min-width:0}
+.fila-libro .txt b{display:block;font-family:var(--serif);color:var(--tinta);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tiras{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}
+.tira{display:flex;align-items:center;gap:10px;min-width:220px;max-width:320px;flex:none;padding:8px 12px;border:1px solid var(--linea);border-radius:12px;background:#fff;text-decoration:none;color:inherit}
+.tira:hover{border-color:var(--oro)}
+.tira b{display:block;font-family:var(--serif);color:var(--tinta);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+#filtros-estado{margin-top:-8px}
+#filtros-estado .etiqueta-filtro{align-self:center;font-size:.78rem;color:var(--suave);font-weight:600;text-transform:uppercase;letter-spacing:.6px}
+
+/* ── Modal, confirmación y toasts ── */
+.velo{position:fixed;inset:0;background:rgba(20,22,35,.55);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+.velo.abierto{display:flex;animation:aparecer .2s}
+.modal{background:var(--hoja);border-radius:16px;box-shadow:var(--sombra-2);width:min(720px,100%);max-height:calc(100vh - 40px);display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--linea)}
+.modal.estrecho{width:min(460px,100%)}
+.modal.ancho{width:min(900px,100%)}
+.modal-cab{display:flex;align-items:center;gap:12px;padding:18px 22px;border-bottom:1px solid var(--linea);background:var(--papel-2)}
+.modal-cab h2{font-size:1.3rem}
+.modal-cab .cerrar{margin-left:auto;background:none;border:0;cursor:pointer;color:var(--suave);padding:4px;border-radius:6px}
+.modal-cab .cerrar:hover{background:var(--papel);color:var(--tinta)}
+.modal-cuerpo{padding:22px;overflow:auto}
+.modal-pie{display:flex;gap:8px;justify-content:flex-end;padding:14px 22px;border-top:1px solid var(--linea);background:var(--papel-2);flex-wrap:wrap}
+.detalle-libro{display:flex;gap:24px;align-items:flex-start}
+.detalle-libro .info{flex:1;min-width:0}
+.detalle-libro h3{font-size:1.6rem;line-height:1.2}
+.detalle-libro .autor{font-style:italic;color:var(--suave);margin:4px 0 12px;font-family:var(--serif);font-size:1.05rem}
+.descripcion{font-family:var(--serif);font-size:1rem;line-height:1.55;color:#40392e;border-left:3px solid var(--oro-2);padding-left:12px;margin:14px 0}
+.toasts{position:fixed;right:20px;bottom:20px;display:flex;flex-direction:column;gap:10px;z-index:200;max-width:min(420px,calc(100vw - 40px))}
+.toast{display:flex;gap:12px;align-items:flex-start;background:var(--hoja);border:1px solid var(--linea);border-left:5px solid var(--verde);border-radius:12px;padding:12px 14px;box-shadow:var(--sombra-2);animation:entrar .25s ease;font-size:.9rem}
+.toast.error{border-left-color:var(--rojo)}.toast.aviso{border-left-color:var(--oro)}
+.toast svg.i{margin-top:1px}
+.toast.exito svg.i{color:var(--verde)}.toast.error svg.i{color:var(--rojo)}.toast.aviso svg.i{color:var(--oro)}
+.toast .tt{display:block;color:var(--tinta);margin-bottom:2px;font-weight:700}
+.toast b{color:var(--tinta)}
+.toast .cod{font-family:var(--mono);font-size:.72rem;color:var(--suave)}
+.toast.saliendo{animation:salir .25s ease forwards}
+@keyframes entrar{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
+@keyframes salir{to{opacity:0;transform:translateX(30px)}}
+.cortina{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:25}
+
+/* ── Responsive ── */
+@media (max-width:1100px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))}.g-panel,.g3{grid-template-columns:1fr}}
+@media (max-width:900px){
+  .form-linea{grid-template-columns:1fr}
+  .app{grid-template-columns:1fr}
+  .lateral{position:fixed;left:0;top:0;width:270px;transform:translateX(-100%);transition:transform .25s}
+  body.menu-abierto .lateral{transform:none}
+  body.menu-abierto .cortina{display:block}
+  .menu-movil{display:block}
+  .barra{padding:14px 18px}.barra h1{font-size:1.25rem}.barra .sub{display:none}
+  main{padding:20px 16px 60px}
+  .g2{grid-template-columns:1fr}
+  .estante{grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:18px 14px}
+  .detalle-libro{flex-direction:column;align-items:center}
+  .detalle-libro .info{width:100%}
+  .fila-campos,.fila-campos.tres{grid-template-columns:1fr}
+  .ocultar-movil{display:none}
+}
+@media (max-width:520px){.g4{grid-template-columns:1fr 1fr}.metrica .valor{font-size:1.6rem}.kv{grid-template-columns:1fr 1fr 1fr}.barra .acciones .boton span{display:none}}
+
+/* ── v2: usabilidad ── */
+:focus-visible{outline:3px solid var(--oro);outline-offset:2px;border-radius:6px}
+.solo-tecnico{display:none!important}
+body.modo-tecnico .solo-tecnico{display:revert!important}
+body.modo-tecnico span.solo-tecnico,body.modo-tecnico .distintivo.solo-tecnico,body.modo-tecnico .boton.solo-tecnico{display:inline-flex!important}
+body.modo-tecnico span.mono.solo-tecnico{display:inline!important}
+.ayuda-btn{width:36px;height:36px;border-radius:50%;border:1px solid var(--linea);background:var(--hoja);color:var(--tinta);font-family:var(--serif);font-weight:700;font-size:1.05rem;cursor:pointer;display:grid;place-items:center}
+.ayuda-btn:hover{background:var(--papel);border-color:var(--oro)}
+.lateral .pie-lat{padding:14px 16px 18px;border-top:1px solid rgba(255,255,255,.08);font-size:.8rem}
+.boton-lat{display:flex;align-items:center;gap:10px;width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#e9e3d4;border-radius:9px;padding:9px 12px;cursor:pointer;font:inherit;font-size:.85rem;text-align:left}
+.boton-lat:hover{background:rgba(255,255,255,.12)}
+.boton-lat small{display:block;color:#b9b09c;font-size:.72rem}
+.etiqueta-tec{display:inline-block;margin-top:10px;font-size:.7rem;background:var(--oro);color:var(--tinta);border-radius:20px;padding:1px 8px;font-weight:700}
+.rapidas{display:grid;gap:14px;grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:18px}
+.rapida{display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:14px;border:1px solid var(--linea);background:var(--hoja);cursor:pointer;text-align:left;font:inherit;color:var(--texto);box-shadow:var(--sombra);transition:.15s}
+.rapida:hover{transform:translateY(-2px);border-color:var(--oro)}
+.rapida .ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;flex:none;color:#fff}
+.rapida .ic svg{width:22px;height:22px}
+.rapida b{display:block;font-family:var(--serif);font-size:1.05rem;color:var(--tinta)}
+.rapida small{color:var(--suave);font-size:.8rem}
+.hoy{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.hoy li{display:flex;gap:12px;align-items:center;padding:10px 12px;border-radius:10px;background:var(--papel-2);border:1px solid var(--linea-2)}
+.hoy li .n{font-family:var(--serif);font-size:1.35rem;font-weight:700;min-width:46px;text-align:center;color:var(--tinta)}
+.hoy li a{margin-left:auto;font-size:.82rem;white-space:nowrap}
+.hoy li.alerta .n{color:var(--rojo)}.hoy li.bien .n{color:var(--verde)}
+/* Selector buscable */
+.selector{position:relative}
+.selector .caja{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--linea);border-radius:9px;padding:0 10px}
+.selector .caja:focus-within{border-color:var(--oro);box-shadow:0 0 0 3px rgba(180,138,74,.18)}
+.selector .caja input{border:0;box-shadow:none;padding:10px 2px;background:transparent}
+.selector .caja svg{color:var(--suave)}
+.selector-lista{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--hoja);border:1px solid var(--linea);border-radius:12px;box-shadow:var(--sombra-2);max-height:300px;overflow:auto;z-index:60;padding:6px;margin:0;list-style:none;display:none}
+.selector.abierto .selector-lista{display:block}
+.modal .selector-lista{position:static;margin-top:6px;box-shadow:none;max-height:min(300px,45vh)}
+.selector .caja input:focus,.selector .caja input:focus-visible{outline:none;box-shadow:none}
+.opcion{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;cursor:pointer}
+.opcion .txt{flex:1;min-width:0}
+.opcion .txt b{display:block;font-size:.92rem;color:var(--tinta);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.opcion .txt small{display:block;color:var(--suave);font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.opcion.activa,.opcion:hover{background:#f6eedd}
+.opcion[aria-disabled=true]{opacity:.55;cursor:not-allowed}
+.opcion .por-que{font-size:.72rem;color:var(--rojo)}
+.sin-opciones{padding:14px;color:var(--suave);text-align:center;font-size:.88rem}
+.elegido{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--oro-2);background:#fbf4e4;border-radius:11px}
+.elegido .txt{flex:1;min-width:0}
+.elegido .txt b{display:block;color:var(--tinta);font-family:var(--serif)}
+.elegido .txt small{color:var(--suave);font-size:.8rem}
+/* Asistente por pasos */
+.pasos{display:flex;gap:8px;margin-bottom:18px;list-style:none;padding:0}
+.pasos li{flex:1;display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--suave);padding-bottom:8px;border-bottom:3px solid var(--linea)}
+.pasos li .num{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--linea);color:var(--tinta);font-weight:700;font-size:.8rem;flex:none}
+.pasos li.actual{color:var(--tinta);font-weight:700;border-color:var(--vino)}
+.pasos li.actual .num{background:var(--vino);color:#fff}
+.pasos li.hecho{border-color:var(--verde)}.pasos li.hecho .num{background:var(--verde);color:#fff}
+.resumen{display:flex;gap:18px;align-items:flex-start}
+.resumen .portada{width:120px;flex:none;padding:12px 10px 10px 16px}
+.resumen .portada .tit{font-size:.85rem}
+.fecha-grande{font-family:var(--serif);font-size:1.25rem;color:var(--tinta)}
+.exito-grande{text-align:center;padding:10px 0}
+.exito-grande svg{width:64px;height:64px;color:var(--verde);stroke-width:1.5}
+.exito-grande h3{font-size:1.4rem;margin:8px 0 4px}
+/* Interruptor */
+.interruptor{display:flex;align-items:center;gap:12px;cursor:pointer;user-select:none}
+.interruptor input{position:absolute;opacity:0;width:1px;height:1px}
+.interruptor .riel{width:44px;height:24px;border-radius:24px;background:#cfc6b3;position:relative;flex:none;transition:.2s}
+.interruptor .riel::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.interruptor input:checked+.riel{background:var(--verde)}
+.interruptor input:checked+.riel::after{left:23px}
+.interruptor input:focus-visible+.riel{outline:3px solid var(--oro);outline-offset:2px}
+.secciones-ayuda{display:grid;gap:10px;grid-template-columns:1fr 1fr;margin:14px 0}
+.secciones-ayuda div{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:10px;background:var(--papel-2);border:1px solid var(--linea-2);font-size:.88rem}
+.secciones-ayuda svg{color:var(--vino);margin-top:2px}
+.secciones-ayuda b{display:block;color:var(--tinta)}
+.lista-ayuda{margin:0;padding-left:20px;line-height:1.7}
+.relativo{display:block;font-size:.75rem;font-weight:600}
+.relativo.mal{color:var(--rojo)}
+/* `aviso` también es el recuadro de alerta; aquí solo debe ser el color del plazo. */
+.relativo.aviso{display:block;margin:0;padding:0;border:0;background:none;border-radius:0;gap:0;font-size:.75rem;color:var(--ambar)}
+.relativo.bien{color:var(--verde)}
+.filtro-tabla{max-width:320px}
+.explica{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:12px;background:#efe6d2;border:1px solid var(--linea);margin-bottom:18px;color:#4a3f2c}
+.explica svg{color:var(--vino);width:22px;height:22px;margin-top:2px}
+.explica b{color:var(--tinta)}
+@media (max-width:1100px){.rapidas{grid-template-columns:1fr 1fr}}
+@media (max-width:640px){.rapidas{grid-template-columns:1fr}.secciones-ayuda{grid-template-columns:1fr}.resumen{flex-direction:column;align-items:center}.pasos li span.txt-paso{display:none}}
+[hidden]{display:none!important}
+@media (max-width:640px){
+  .tabla-tarjetas thead{display:none}
+  .tabla-tarjetas,.tabla-tarjetas tbody{display:block;min-width:0!important;width:100%}
+  .tabla-tarjetas tr{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;padding:12px 14px;border-bottom:1px solid var(--linea)}
+  .tabla-tarjetas td{display:block!important;padding:0!important;border:0!important;white-space:normal}
+  .tabla-tarjetas td:first-child,.tabla-tarjetas td.acc{grid-column:1/-1}
+  .tabla-tarjetas td.ocultar-movil{display:none!important}
+  .tabla-tarjetas td[data-et]::before{content:attr(data-et);display:block;font-size:.66rem;text-transform:uppercase;letter-spacing:.07em;color:var(--suave);margin-bottom:2px}
+  .tabla-tarjetas td.acc .acciones-fila{justify-content:flex-end}
+  .tabla-tarjetas td.acc .ocultar-movil{display:inline}
+  .tabla-tarjetas td.acc:empty,.tabla-tarjetas td.acc .acciones-fila:empty{display:none!important}
+  #metricas{grid-template-columns:1fr 1fr!important;gap:12px}
+  .rapidas{grid-template-columns:1fr 1fr!important;gap:10px}.rapida small,.rapida span.sub{display:none}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-libro" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M9 7h7M9 11h5"/></symbol>
+  <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></symbol>
+  <symbol id="i-usuarios" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="i-prestamo" viewBox="0 0 24 24"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></symbol>
+  <symbol id="i-reserva" viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/><path d="M12 7v4l2 1"/></symbol>
+  <symbol id="i-multa" viewBox="0 0 24 24"><path d="M4 2v20l3-2 3 2 3-2 3 2 3-2 1 .7V2l-1 .7-3-2-3 2-3-2-3 2-3-2z" transform="translate(0 .5) scale(1 .96)"/><path d="M14.5 8.5h-4a1.5 1.5 0 0 0 0 3h3a1.5 1.5 0 0 1 0 3h-4.5M12 7v1.5M12 14.5V16"/></symbol>
+  <symbol id="i-cache" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></symbol>
+  <symbol id="i-buscar" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></symbol>
+  <symbol id="i-mas" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-editar" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></symbol>
+  <symbol id="i-borrar" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/></symbol>
+  <symbol id="i-cerrar" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></symbol>
+  <symbol id="i-ok" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 12.5l2.5 2.5L16 9.5"/></symbol>
+  <symbol id="i-alerta" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+  <symbol id="i-reloj" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="i-devolver" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></symbol>
+  <symbol id="i-renovar" viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></symbol>
+  <symbol id="i-servidor" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></symbol>
+  <symbol id="i-izq" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></symbol>
+  <symbol id="i-der" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></symbol>
+  <symbol id="i-estrella" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></symbol>
+  <symbol id="i-etiqueta" viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><path d="M7 7h.01"/></symbol>
+  <symbol id="i-pluma" viewBox="0 0 24 24"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><path d="M16 8L2 22M17.5 15H9"/></symbol>
+  <symbol id="i-calendario" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+  <symbol id="i-recargar" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></symbol>
+  <symbol id="i-engranaje" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+  <symbol id="i-usuario-mas" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></symbol>
+  <symbol id="i-sol" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+</svg>
+
+<a href="#contenido" class="boton" style="position:absolute;left:-999px;top:8px;z-index:300" onfocus="this.style.left='8px'" onblur="this.style.left='-999px'">Saltar al contenido</a>
+<div class="app">
+  <aside class="lateral" id="lateral" aria-label="Menú principal">
+    <div class="marca">
+      <div class="sello"><svg class="i"><use href="#i-libro"/></svg></div>
+      <div><b>Biblioteca Unimag</b><small>Gestión de préstamos</small></div>
+    </div>
+    <nav class="nav" id="nav">
+      <div class="titulo-grupo">General</div>
+      <a href="#panel" data-vista="panel"><svg class="i"><use href="#i-panel"/></svg>Inicio</a>
+      <a href="#catalogo" data-vista="catalogo"><svg class="i"><use href="#i-libro"/></svg>Catálogo</a>
+      <a href="#usuarios" data-vista="usuarios"><svg class="i"><use href="#i-usuarios"/></svg>Usuarios</a>
+      <div class="titulo-grupo">Circulación</div>
+      <a href="#prestamos" data-vista="prestamos"><svg class="i"><use href="#i-prestamo"/></svg>Préstamos<span class="contador alerta" id="nav-vencidos" hidden title="Préstamos vencidos"></span></a>
+      <a href="#reservas" data-vista="reservas"><svg class="i"><use href="#i-reserva"/></svg>Reservas<span class="contador" id="nav-reservas" hidden title="Personas en fila de espera"></span></a>
+      <a href="#multas" data-vista="multas"><svg class="i"><use href="#i-multa"/></svg>Multas</a>
+      <div class="titulo-grupo">Administración</div>
+      <a href="#sistema" data-vista="sistema"><svg class="i"><use href="#i-servidor"/></svg>Sistema</a>
+    </nav>
+    <div class="pie-lat">
+      <button class="boton-lat" id="abrir-config" title="Configurar la conexión con el servidor">
+        <span class="punto" id="punto-api"></span>
+        <span style="flex:1"><span id="texto-api">Sin conectar</span><small>Configuración</small></span>
+        <svg class="i"><use href="#i-engranaje"/></svg>
+      </button>
+      <span class="etiqueta-tec" id="etq-tecnico" hidden>Modo técnico activo</span>
+      <div class="creditos">Proyecto final · Bases de Datos NoSQL · Universidad del Magdalena<br>Carlos Alfredo Ibañez Ortiz y Adriana Carolina Olivares Vásquez</div>
+    </div>
+  </aside>
+  <div class="cortina" id="cortina"></div>
+
+  <div class="contenido">
+    <header class="barra">
+      <button class="menu-movil" id="abrir-menu" aria-label="Abrir menú"><svg class="i"><use href="#i-menu"/></svg></button>
+      <div><h1 id="titulo-vista">Inicio</h1><div class="sub" id="sub-vista"></div></div>
+      <div class="acciones"><span id="acciones-barra" style="display:flex;gap:8px"></span>
+        <button class="ayuda-btn" id="btn-ayuda" title="Ayuda de esta sección" aria-label="Ayuda de esta sección">?</button></div>
+    </header>
+    <main id="contenido" tabindex="-1">
+      <!-- INICIO -->
+      <section class="vista activa" id="v-panel" aria-labelledby="titulo-vista">
+        <div class="rapidas">
+          <button class="rapida" data-rapida="prestar"><span class="ic" style="background:var(--vino)"><svg class="i"><use href="#i-prestamo"/></svg></span><span><b>Prestar libro</b><small>Entregar un libro a un usuario</small></span></button>
+          <button class="rapida" data-rapida="devolver"><span class="ic" style="background:var(--tinta)"><svg class="i"><use href="#i-devolver"/></svg></span><span><b>Registrar devolución</b><small>Recibir un libro prestado</small></span></button>
+          <button class="rapida" data-rapida="usuario"><span class="ic" style="background:var(--verde)"><svg class="i"><use href="#i-usuario-mas"/></svg></span><span><b>Registrar usuario</b><small>Dar de alta a un estudiante</small></span></button>
+          <button class="rapida" data-rapida="libro"><span class="ic" style="background:var(--ambar)"><svg class="i"><use href="#i-libro"/></svg></span><span><b>Agregar libro</b><small>Sumar un título al catálogo</small></span></button>
+        </div>
+        <div class="rejilla" id="metricas" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))"></div>
+        <div id="panel-filas" hidden></div>
+        <div class="rejilla g-panel" style="margin-top:18px">
+          <div class="tarjeta">
+            <h3><svg class="i"><use href="#i-sol"/></svg>Hoy en la biblioteca <span class="der tenue" id="fecha-hoy" style="display:inline"></span></h3>
+            <ul class="hoy" id="panel-hoy"></ul>
+          </div>
+          <div class="tarjeta">
+            <h3><svg class="i"><use href="#i-estrella"/></svg>Lo más leído</h3>
+            <div class="pestanas" id="panel-pop-tabs" style="margin-bottom:14px" role="tablist">
+              <button class="pestana activa" data-por="consultas" role="tab">Más consultados</button>
+              <button class="pestana" data-por="prestamos" role="tab">Más prestados</button>
+            </div>
+            <div id="panel-populares"></div>
+          </div>
+        </div>
+        <div class="rejilla g-panel" style="margin-top:18px">
+          <div class="tarjeta">
+            <h3><svg class="i"><use href="#i-reloj"/></svg>Libros que debieron devolverse <span class="der"><a href="#prestamos" class="boton claro peq" id="ver-vencidos">Ver todos</a></span></h3>
+            <div id="panel-vencidos"></div>
+          </div>
+          <div class="tarjeta">
+            <h3><svg class="i"><use href="#i-etiqueta"/></svg>Explorar por categoría</h3>
+            <div id="panel-categorias"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CATÁLOGO -->
+      <section class="vista" id="v-catalogo">
+        <div class="herramientas">
+          <form class="buscador" id="form-buscar" role="search">
+            <svg class="i"><use href="#i-buscar"/></svg>
+            <label for="q" class="sr" style="position:absolute;left:-9999px">Buscar por título</label>
+            <input id="q" placeholder="Buscar por título" autocomplete="off" title="No importan las mayúsculas ni las tildes. Al menos 2 letras. Atajo: /">
+            <button class="boton peq" type="submit">Buscar</button>
+          </form>
+          <div style="display:flex;gap:8px;align-items:center">
+            <label for="filtro-autor" class="tenue" style="display:inline">Autor</label>
+            <select id="filtro-autor" style="width:240px" title="Ver solo los libros de un autor"><option value="">Todos los autores</option></select>
+          </div>
+        </div>
+        <div class="chips" id="chips-categorias" aria-label="Categorías"></div>
+        <div class="chips" id="filtros-estado" aria-label="Disponibilidad">
+          <span class="etiqueta-filtro">Estado</span>
+          <button type="button" class="chip activo" data-estado="" aria-pressed="true">Cualquiera</button>
+          <button type="button" class="chip" data-estado="disponible" aria-pressed="false">Disponibles</button>
+          <button type="button" class="chip" data-estado="agotado" aria-pressed="false">Agotados</button>
+          <button type="button" class="chip" data-estado="fila" aria-pressed="false">Con fila</button>
+        </div>
+        <div id="catalogo-cabecera" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap"></div>
+        <div id="estante" aria-live="polite"></div>
+        <div class="paginacion" id="pag-catalogo"></div>
+      </section>
+
+      <!-- USUARIOS -->
+      <section class="vista" id="v-usuarios">
+        <div class="herramientas"><div style="flex:1;max-width:460px" id="sel-buscar-usuario"></div></div>
+        <div id="tabla-usuarios"></div>
+        <div class="paginacion" id="pag-usuarios"></div>
+      </section>
+
+      <!-- PRÉSTAMOS -->
+      <section class="vista" id="v-prestamos">
+        <div class="herramientas">
+          <div class="pestanas" id="pestanas-prestamos" role="tablist">
+            <button class="pestana activa" data-estado="activo" role="tab" title="Libros que están prestados ahora">En curso</button>
+            <button class="pestana" data-estado="vencidos" role="tab" title="Préstamos cuya fecha de devolución ya pasó">Vencidos <span class="n" id="n-vencidos">·</span></button>
+            <button class="pestana" data-estado="devuelto" role="tab" title="Historial de libros ya devueltos">Devueltos</button>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <label for="filtro-prestamos" style="position:absolute;left:-9999px">Filtrar préstamos</label>
+            <input id="filtro-prestamos" class="filtro-tabla" placeholder="Filtrar por libro o usuario…" autocomplete="off">
+          </div>
+        </div>
+        <div id="tabla-prestamos"></div>
+        <div class="paginacion" id="pag-prestamos"></div>
+      </section>
+
+      <!-- RESERVAS -->
+      <section class="vista" id="v-reservas">
+        <div class="explica"><svg class="i"><use href="#i-info"/></svg><div><b>¿Qué es una reserva?</b> Es apartar un libro que está <b>agotado</b> (todos sus ejemplares prestados). Cuando alguien lo devuelva, el libro queda guardado para la primera persona de la fila, luego para la segunda, y así sucesivamente.</div></div>
+        <div class="rejilla g2" style="align-items:start">
+          <div class="tarjeta">
+            <h3><svg class="i"><use href="#i-reserva"/></svg>Nueva reserva</h3>
+            <form id="form-reserva">
+              <div class="campo" id="sel-r-usuario"></div>
+              <div class="campo" id="sel-r-libro"></div>
+              <button class="boton vino" type="submit"><svg class="i"><use href="#i-mas"/></svg>Reservar y entrar a la fila</button>
+            </form>
+          </div>
+          <div class="tarjeta">
+            <h3><svg class="i"><use href="#i-usuarios"/></svg>Fila de espera de un libro</h3>
+            <div class="campo" id="sel-fila-libro"></div>
+            <div id="fila-resultado"></div>
+          </div>
+        </div>
+        <div class="tarjeta" style="margin-top:18px">
+          <h3><svg class="i"><use href="#i-reserva"/></svg>Libros con fila de espera</h3>
+          <p class="tenue" style="display:block;margin:-6px 0 14px">Aparecen todos los títulos que tienen personas esperando, vengan de este equipo o de otro. Los nombres se muestran cuando la reserva se hizo aquí.</p>
+          <div id="tablero-filas"></div>
+        </div>
+      </section>
+
+      <!-- MULTAS -->
+      <section class="vista" id="v-multas">
+        <div class="explica"><svg class="i"><use href="#i-info"/></svg><div>Las multas por <b>retraso</b> se generan solas al registrar una devolución tardía: <b>$1.000 por cada día</b> de atraso. Aquí también puede registrar multas por otros motivos, como daños o pérdida.</div></div>
+        <div class="rejilla g2" style="align-items:start">
+          <div class="tarjeta">
+            <h3><svg class="i"><use href="#i-multa"/></svg>Registrar una multa</h3>
+            <form id="form-multa">
+              <div class="campo" id="sel-m-usuario"></div>
+              <div class="fila-campos">
+                <div class="campo"><label for="m-monto">Valor en pesos <span class="req">*</span></label><input id="m-monto" type="number" min="1" step="1" inputmode="numeric" required placeholder="Ej. 5000"><small>Sin puntos ni signo $. Ej.: 15000</small></div>
+                <div class="campo"><label for="m-motivo">Motivo <span class="req">*</span></label><input id="m-motivo" required list="motivos" placeholder="Ej. Libro dañado"><small>Explique brevemente la razón</small></div>
+              </div>
+              <datalist id="motivos"><option value="Libro dañado"><option value="Libro perdido"><option value="Páginas rayadas o arrancadas"><option value="Pérdida del carné"></datalist>
+              <div class="campo"><label for="m-prestamo">¿Se relaciona con un préstamo?</label><select id="m-prestamo" disabled><option value="">Primero elija el usuario</option></select><small>Opcional. Ayuda a saber qué libro generó la multa.</small></div>
+              <button class="boton vino" type="submit"><svg class="i"><use href="#i-mas"/></svg>Registrar multa</button>
+            </form>
+          </div>
+          <div class="tarjeta">
+            <h3><svg class="i"><use href="#i-buscar"/></svg>Consultar multas de un usuario</h3>
+            <div class="campo" id="sel-vm-usuario"></div>
+            <div id="multas-resultado"></div>
+          </div>
+        </div>
+        <div class="tarjeta" style="margin-top:18px">
+          <h3><svg class="i"><use href="#i-alerta"/></svg>Usuarios con multas pendientes</h3>
+          <div id="con-multas"></div>
+        </div>
+      </section>
+
+      <!-- SISTEMA -->
+      <section class="vista" id="v-sistema"><div id="sistema-contenido"></div></section>
+    </main>
+  </div>
+</div>
+
+<div class="velo" id="velo"><div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-titulo">
+  <div class="modal-cab"><h2 id="modal-titulo"></h2><span id="modal-extra"></span><button class="cerrar" id="modal-cerrar" aria-label="Cerrar"><svg class="i"><use href="#i-cerrar"/></svg></button></div>
+  <div class="modal-cuerpo" id="modal-cuerpo"></div>
+  <div class="modal-pie" id="modal-pie"></div>
+</div></div>
+<div class="velo" id="velo-confirmar" style="z-index:150"><div class="modal estrecho" role="alertdialog" aria-modal="true" aria-labelledby="confirmar-titulo">
+  <div class="modal-cab"><svg class="i" id="confirmar-icono" style="color:var(--rojo);width:22px;height:22px"><use href="#i-alerta"/></svg><h2 id="confirmar-titulo">¿Confirmar?</h2></div>
+  <div class="modal-cuerpo" id="confirmar-texto"></div>
+  <div class="modal-pie"><button class="boton claro" id="confirmar-no">Cancelar</button><button class="boton vino" id="confirmar-si">Confirmar</button></div>
+</div></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<script>
+"use strict";
+/* Abrir con `python servir.py` (http://127.0.0.1:8765). /detectar-api
+   lista el API en LocalStack; el navegador no puede (403 por Origin).
+   localStorage: baseUrl, reservasLocales, modoTecnico, bienvenidaVista. */
+const $ = (id) => document.getElementById(id);
+const CLAVE_BASE = "baseUrl";
+const CLAVE_RESERVAS = "reservasLocales";
+const CLAVE_TECNICO = "modoTecnico";
+const CLAVE_BIENVENIDA = "bienvenidaVista";
+const DIAS_PRESTAMO = 14, MAX_RENOVACIONES = 2, MULTA_POR_DIA = 1000, TAM_PAGINA = 12;
+const DIA_MS = 86400000;
+
+// ── Utilidades ──────────────────────────────────────────────────────
+function esc(v) {
+  return String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
+const icono = (n, extra = "") => `<svg class="i" aria-hidden="true" ${extra}><use href="#i-${n}"/></svg>`;
+const enc = encodeURIComponent;
+const fmtNum = (n) => new Intl.NumberFormat("es-CO").format(n ?? 0);
+const fmtCOP = (n) => new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(n ?? 0);
+const normalizar = (s) => String(s || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+const plural = (n, uno, varios) => `${fmtNum(n)} ${n === 1 ? uno : varios}`;
+function hash(s) { let h = 0; for (const c of String(s || "")) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h); }
+const PALETA = ["#7b2337", "#1f3a5f", "#2f5d50", "#9a6a12", "#5b3a6e", "#1f6f78", "#a0472b", "#5f6b2a", "#3d4a5c", "#6b4a2b", "#8c3b5e", "#2d5e8a"];
+const colorCategoria = (cat) => cat ? PALETA[hash(normalizar(cat)) % PALETA.length] : "#5a4632";
+const colorUsuario = (id) => PALETA[(hash(id) + 3) % PALETA.length];
+const iniciales = (n) => String(n || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase();
+
+// ── Fechas para humanos ────────────────────────────────────────────
+// El servidor trabaja con fechas UTC (AAAA-MM-DD) para los plazos.
+const hoyUTC = () => new Date().toISOString().slice(0, 10);
+const sumarDias = (iso, n) => new Date(Date.parse(iso + "T00:00:00Z") + n * DIA_MS).toISOString().slice(0, 10);
+const diasEntre = (desde, hasta) => Math.round((Date.parse(hasta + "T00:00:00Z") - Date.parse(desde + "T00:00:00Z")) / DIA_MS);
+function fmtFecha(s, { hora = false, larga = false } = {}) {
+  if (!s) return "—";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    return new Date(s + "T00:00:00Z").toLocaleDateString("es-CO", larga
+      ? { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }
+      : { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  }
+  const d = new Date(s);
+  if (isNaN(d)) return esc(s);
+  return d.toLocaleString("es-CO", hora ? { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" } : { day: "numeric", month: "short", year: "numeric" });
+}
+/** «vence en 3 días», «vence hoy», «vencido hace 2 días». */
+function plazo(fechaLimite) {
+  const d = diasEntre(hoyUTC(), fechaLimite);
+  if (d < 0) return { texto: `vencido hace ${plural(-d, "día", "días")}`, clase: "mal", dias: d };
+  if (d === 0) return { texto: "vence hoy", clase: "aviso", dias: d };
+  if (d === 1) return { texto: "vence mañana", clase: "aviso", dias: d };
+  return { texto: `vence en ${d} días`, clase: d <= 3 ? "aviso" : "bien", dias: d };
+}
+function haceCuanto(iso) {
+  const d = diasEntre(String(iso).slice(0, 10), hoyUTC());
+  return d <= 0 ? "hoy" : d === 1 ? "ayer" : `hace ${d} días`;
+}
+
+// ── Modo técnico (apagado por defecto) ─────────────────────────────
+const tecnico = () => document.body.classList.contains("modo-tecnico");
+function ponerModoTecnico(on) {
+  document.body.classList.toggle("modo-tecnico", on);
+  localStorage.setItem(CLAVE_TECNICO, on ? "1" : "0");
+  $("etq-tecnico").hidden = !on;
+}
+/** Insignia «Redis · cache» / «DynamoDB»: solo en modo técnico. */
+const fuenteBadge = (f) => f ? `<span class="distintivo d-${esc(f)} solo-tecnico" title="Origen de la respuesta (modo técnico)">${f === "cache" ? "Redis · cache" : "DynamoDB"}</span>` : "";
+const codigo = (id) => `<span class="mono solo-tecnico" title="Código interno">${esc(id)}</span>`;
+
+// ── Conexión con el API ────────────────────────────────────────────
+const conexion = { base: localStorage.getItem(CLAVE_BASE) || "", ok: false };
+(function desdeUrl() {
+  const p = new URLSearchParams(location.search).get("api");
+  if (p) { conexion.base = p.trim().replace(/\/+$/, ""); localStorage.setItem(CLAVE_BASE, conexion.base); }
+})();
+const base = () => conexion.base;
+function guardarBase(url) { conexion.base = String(url || "").trim().replace(/\/+$/, ""); localStorage.setItem(CLAVE_BASE, conexion.base); }
+
+class ErrorApi extends Error {
+  constructor(status, mensaje, datos) { super(mensaje); this.status = status; this.datos = datos; }
+}
+async function api(metodo, ruta, cuerpo, baseUrl = base()) {
+  if (!baseUrl) throw new ErrorApi(0, "Sin URL del API");
+  const opciones = { method: metodo, headers: {} };
+  if (cuerpo !== undefined) { opciones.headers["Content-Type"] = "application/json"; opciones.body = JSON.stringify(cuerpo); }
+  let r;
+  try { r = await fetch(baseUrl + ruta, opciones); }
+  catch { throw new ErrorApi(0, "Sin conexión con el API"); }
+  const texto = await r.text();
+  let datos = null;
+  try { datos = texto ? JSON.parse(texto) : null; } catch { datos = { error: texto }; }
+  if (!r.ok) throw new ErrorApi(r.status, (datos && (datos.error || datos.message)) || `HTTP ${r.status}`, datos);
+  return datos;
+}
+/** Recorre todas las páginas de un listado (?limite=50&siguiente=). */
+async function recorrer(ruta, clave, maxPaginas = 20) {
+  const items = []; let siguiente = null; let paginas = 0;
+  const sep = ruta.includes("?") ? "&" : "?";
+  do {
+    const d = await api("GET", `${ruta}${sep}limite=50${siguiente ? "&siguiente=" + enc(siguiente) : ""}`);
+    items.push(...(d[clave] || []));
+    siguiente = d.siguiente; paginas++;
+  } while (siguiente && paginas < maxPaginas);
+  return { items, incompleto: Boolean(siguiente) };
+}
+/** Busca la API de la biblioteca. El navegador no puede leer :4566/restapis
+ *  (LocalStack responde 403 si la página está en otro puerto), así que lo
+ *  pregunta al propio servidor del frontend (/detectar-api). */
+async function detectarApi() {
+  try {
+    const local = await fetch("/detectar-api");
+    if (local.ok) {
+      const d = await local.json();
+      if (d && d.url) return d.url;
+    }
+  } catch { /* abierto como archivo, o un servidor que no tiene el proxy */ }
+  return null;
+}
+
+// ── Datos compartidos: usuarios y libros (para buscadores y nombres) ─
+const datos = { usuarios: new Map(), libros: new Map(), cargado: false };
+async function cargarDatos() {
+  const [u, l] = await Promise.all([recorrer("/usuarios", "usuarios"), recorrer("/items", "items")]);
+  datos.usuarios = new Map(u.items.map((x) => [x.id, x]));
+  datos.libros = new Map(l.items.map((x) => [x.id, x]));
+  datos.cargado = true;
+  actualizarContadorReservas();
+  return datos;
+}
+function librosConFila() {
+  return [...datos.libros.values()]
+    .filter((l) => (l.reservas_pendientes || 0) > 0)
+    .sort((a, b) => (b.reservas_pendientes - a.reservas_pendientes) || a.titulo.localeCompare(b.titulo, "es"));
+}
+function actualizarContadorReservas() {
+  const n = [...datos.libros.values()].reduce((s, l) => s + (l.reservas_pendientes || 0), 0);
+  const c = $("nav-reservas");
+  if (!c) return;
+  c.hidden = !n;
+  c.textContent = n > 99 ? "99+" : String(n);
+}
+function reservasConocidas(itemId) {
+  return reservasLocales().filter((r) => r.item_id === itemId)
+    .sort((a, b) => String(a.fecha_reserva).localeCompare(String(b.fecha_reserva)));
+}
+const refrescarDatos = () => cargarDatos().catch(() => datos);
+const nombreUsuario = (id) => datos.usuarios.get(id)?.nombre || id;
+const tituloLibro = (id) => datos.libros.get(id)?.titulo || id;
+
+// ── Mensajes de error en lenguaje claro ────────────────────────────
+const CAMPOS = { usuario_id: "el usuario", item_id: "el libro", titulo: "el título", autor: "el autor", nombre: "el nombre", email: "el correo", monto: "el valor", motivo: "el motivo", anio: "el año", ejemplares: "los ejemplares", categoria: "la categoría" };
+function traducir(e) {
+  const m = e.message || "";
+  const L = (id) => `«${esc(tituloLibro(id))}»`, U = (id) => `<b>${esc(nombreUsuario(id))}</b>`;
+  const reglas = [
+    [/El usuario ya tiene (\d+) préstamos activos/, (x) => `Este usuario ya tiene ${x[1]} préstamos activos, el máximo permitido. Debe devolver uno antes de llevarse otro.`],
+    [/No hay ejemplares disponibles de '(.+?)'/, (x) => `No quedan ejemplares disponibles de ${L(x[1])}. Puede reservarlo para que le guarden el próximo que se devuelva.`],
+    [/'(.+?)' está reservado para otros usuarios en la fila/, (x) => `${L(x[1])} está apartado para las personas que lo reservaron antes. Solo puede prestarse a quien sigue en la fila.`],
+    [/Hay ejemplares disponibles de '(.+?)'/, (x) => `${L(x[1])} tiene ejemplares disponibles: no hace falta reservarlo, se puede prestar de una vez.`],
+    [/El usuario ya tiene una reserva de '(.+?)'/, (x) => `Este usuario ya está en la fila de espera de ${L(x[1])}.`],
+    [/reservas pendientes: no se puede renovar/, () => "No se puede renovar: otras personas están esperando este libro. Debe devolverse en la fecha acordada."],
+    [/vencido: no se puede renovar/, () => "No se puede renovar un préstamo vencido. Primero debe devolverse el libro."],
+    [/ya se renovó (\d+) veces/, (x) => `Este préstamo ya se renovó ${x[1]} veces, el máximo permitido.`],
+    [/ya fue devuelto/, () => "Este préstamo ya había sido devuelto."],
+    [/El usuario '(.+?)' tiene préstamos activos/, (x) => `No se puede eliminar a ${U(x[1])}: todavía tiene libros prestados.`],
+    [/El usuario '(.+?)' tiene reservas/, (x) => `No se puede eliminar a ${U(x[1])}: tiene reservas en espera. Cancélelas primero.`],
+    [/El ítem '(.+?)' tiene préstamos activos/, (x) => `No se puede eliminar ${L(x[1])}: hay ejemplares prestados.`],
+    [/El ítem '(.+?)' tiene reservas pendientes/, (x) => `No se puede eliminar ${L(x[1])}: hay personas en la fila de espera.`],
+    [/No se puede dejar (\d+) ejemplares: hay (\d+) prestados/, (x) => `No puede dejar ${x[1]} ejemplares porque hay ${x[2]} prestados en este momento.`],
+    [/Ya existe un usuario con id/, () => "Ya existe un usuario con ese código."],
+    [/Ya existe un ítem con id/, () => "Ya existe un libro con ese código."],
+    [/no es un correo válido/, () => "El correo no es válido. Ejemplo: nombre@unimag.edu.co"],
+    [/Usuario '.+?' no encontrado/, () => "No encontramos ese usuario. Es posible que lo hayan eliminado."],
+    [/Ítem '.+?' no encontrado/, () => "No encontramos ese libro. Es posible que lo hayan retirado del catálogo."],
+    [/Préstamo '.+?' no encontrado/, () => "No encontramos ese préstamo."],
+    [/Reserva '.+?' no encontrada/, () => "Esa reserva ya no existe: quizá ya se atendió con un préstamo o la cancelaron."],
+    [/Categoría '.+?' no encontrada/, () => "Esa categoría ya no tiene libros."],
+    [/cambió mientras|intente de nuevo/, () => "Otra persona modificó este registro al mismo tiempo. Intente de nuevo."],
+    [/El préstamo no pertenece a ese usuario/, () => "Ese préstamo es de otro usuario."],
+    [/Falta el campo obligatorio '(\w+)'/, (x) => `Falta completar ${CAMPOS[x[1]] || x[1]}.`],
+    [/El campo '(\w+)' debe ser un entero entre (\d+) y (\d+)/, (x) => `El valor de ${CAMPOS[x[1]] || x[1]} debe estar entre ${fmtNum(+x[2])} y ${fmtNum(+x[3])}.`],
+    [/'q' debe tener/, () => "Escriba al menos 2 letras para buscar."],
+    [/El campo '(\w+)' solo admite/, () => "El código solo puede tener letras sin tildes, números, guiones y guiones bajos."],
+    [/Redis no responde/, () => "La memoria rápida del sistema no responde. Los datos se siguen mostrando desde la base de datos."],
+    [/Error al acceder a la base de datos/, () => "Hubo un problema con la base de datos. Intente de nuevo en un momento."],
+  ];
+  if (e.status === 0) return "No hay conexión con el servidor de la biblioteca. Revise la configuración (botón abajo a la izquierda).";
+  for (const [re, f] of reglas) { const x = m.match(re); if (x) return f(x); }
+  return esc(m);
+}
+
+// ── Avisos (toasts) ────────────────────────────────────────────────
+function toast(tipo, titulo, mensaje = "", detalleTecnico = "") {
+  const t = document.createElement("div");
+  t.className = `toast ${tipo}`;
+  t.setAttribute("role", tipo === "error" ? "alert" : "status");
+  t.innerHTML = `${icono(tipo === "exito" ? "ok" : tipo === "error" ? "alerta" : "info")}
+    <div><span class="tt">${esc(titulo)}</span>${mensaje ? `<div>${mensaje}</div>` : ""}${detalleTecnico ? `<div class="cod solo-tecnico">${esc(detalleTecnico)}</div>` : ""}</div>`;
+  $("toasts").appendChild(t);
+  setTimeout(() => { t.classList.add("saliendo"); setTimeout(() => t.remove(), 300); }, tipo === "error" ? 8000 : 5000);
+}
+function errorToast(e, titulo = "No se pudo completar") {
+  toast("error", titulo, traducir(e), e.status ? `HTTP ${e.status} · ${e.message}` : "");
+}
+const cargando = (txt = "Cargando…") => `<div class="cargando" role="status"><div class="giro"></div>${esc(txt)}</div>`;
+const vacio = (ic, titulo, txt = "", accion = "") => `<div class="vacio">${icono(ic)}<b>${esc(titulo)}</b>${txt ? `<div>${txt}</div>` : ""}${accion ? `<div style="margin-top:14px">${accion}</div>` : ""}</div>`;
+const errorBloque = (e) => vacio("alerta", e.status === 0 ? "Sin conexión" : "No se pudo cargar", traducir(e), e.status === 0 ? `<button class="boton claro" onclick="abrirConfig()">${icono("engranaje")}Revisar la conexión</button>` : "");
+async function conCarga(boton, fn) {
+  if (!boton) return fn();
+  const html = boton.innerHTML; boton.disabled = true;
+  boton.innerHTML = `<span class="giro"></span>Un momento…`;
+  try { return await fn(); } finally { boton.disabled = false; boton.innerHTML = html; }
+}
+
+// ── Ventanas (modal) y confirmación ────────────────────────────────
+const modal = { alCerrar: null, foco: null };
+function abrirModal(titulo, cuerpo, pie = "", opciones = {}) {
+  if (!$("velo").classList.contains("abierto")) modal.foco = document.activeElement;
+  $("modal-titulo").textContent = titulo;
+  $("modal-extra").innerHTML = opciones.extra || "";
+  $("modal-cuerpo").innerHTML = cuerpo;
+  ponerPie(pie);
+  $("modal").classList.toggle("estrecho", Boolean(opciones.estrecho));
+  $("modal").classList.toggle("ancho", Boolean(opciones.ancho));
+  modal.alCerrar = opciones.alCerrar || null;
+  $("velo").classList.add("abierto");
+  setTimeout(() => ($("modal-cuerpo").querySelector("input:not([type=hidden]),select,textarea") || $("modal-cerrar")).focus(), 30);
+}
+function ponerPie(pie) {
+  $("modal-pie").innerHTML = pie;
+  $("modal-pie").style.display = pie ? "" : "none";
+  $("modal-pie").querySelectorAll("[data-cerrar]").forEach((b) => (b.onclick = cerrarModal));
+}
+function cerrarModal() {
+  $("velo").classList.remove("abierto");
+  const f = modal.alCerrar; modal.alCerrar = null; if (f) f();
+  if (modal.foco && document.body.contains(modal.foco)) modal.foco.focus();
+}
+$("modal-cerrar").onclick = cerrarModal;
+$("velo").addEventListener("mousedown", (e) => { if (e.target === $("velo")) cerrarModal(); });
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || document.querySelector(".selector.abierto")) return;
+  if ($("velo-confirmar").classList.contains("abierto")) $("confirmar-no").click();
+  else if ($("velo").classList.contains("abierto")) cerrarModal();
+});
+function confirmar(titulo, html, textoSi = "Eliminar", { peligro = true } = {}) {
+  return new Promise((ok) => {
+    const previo = document.activeElement;
+    $("confirmar-titulo").textContent = titulo;
+    $("confirmar-texto").innerHTML = html;
+    $("confirmar-si").textContent = textoSi;
+    $("confirmar-icono").style.color = peligro ? "var(--rojo)" : "var(--vino)";
+    $("confirmar-icono").innerHTML = `<use href="#i-${peligro ? "alerta" : "info"}"/>`;
+    $("velo-confirmar").classList.add("abierto");
+    setTimeout(() => $("confirmar-si").focus(), 30);
+    const fin = (v) => { $("velo-confirmar").classList.remove("abierto"); $("confirmar-si").onclick = $("confirmar-no").onclick = null; if (previo) previo.focus(); ok(v); };
+    $("confirmar-si").onclick = () => fin(true);
+    $("confirmar-no").onclick = () => fin(false);
+  });
+}
+
+// ── Portadas y estados en palabras ─────────────────────────────────
+function portada(libro, clase = "") {
+  const color = colorCategoria(libro.categoria);
+  return `<div class="portada ${clase}" aria-hidden="true" style="background:linear-gradient(160deg,${color} 0%,${color} 55%,rgba(0,0,0,.25) 140%),${color}">
+    ${(libro.reservas_pendientes || 0) > 0 ? '<span class="cinta"></span>' : ""}
+    <div class="cat">${esc(libro.categoria || "Biblioteca")}</div><div class="orn"></div>
+    <div class="tit">${esc(libro.titulo)}</div>
+    <div class="aut">${esc(libro.autor || "")}</div>${libro.anio ? `<div class="anio">${esc(libro.anio)}</div>` : ""}</div>`;
+}
+const miniPortada = (libro) => `<span class="mini-portada" aria-hidden="true" style="background:${colorCategoria(libro?.categoria)}"></span>`;
+/** Disponible · Reservado · Agotado, con una explicación en el title. */
+function estadoLibro(l, corto = false) {
+  if (!l || l.disponibles === undefined) return "";
+  const espera = l.reservas_pendientes || 0;
+  if (l.disponibles > 0 && espera === 0) return `<span class="distintivo d-ok" title="Se puede prestar ahora">Disponible${corto ? "" : ` · ${l.disponibles} de ${l.ejemplares}`}</span>`;
+  if (l.disponibles > 0) return `<span class="distintivo d-aviso" title="Hay un ejemplar guardado para quien lo reservó">Reservado${corto ? "" : ` · ${plural(espera, "persona", "personas")} en espera`}</span>`;
+  return `<span class="distintivo d-mal" title="Todos los ejemplares están prestados; se puede reservar">Agotado${!corto && espera ? ` · ${espera} en espera` : ""}</span>`;
+}
+function estadoPrestamo(p) {
+  if (p.estado === "DEVUELTO") return `<span class="distintivo d-neutro">Devuelto</span>`;
+  return plazo(p.fecha_limite).dias < 0 ? `<span class="distintivo d-mal">Vencido</span>` : `<span class="distintivo d-ok">En curso</span>`;
+}
+const avatar = (u, tam = 34) => `<span class="avatar" aria-hidden="true" style="width:${tam}px;height:${tam}px;${tam > 40 ? "font-size:1.3rem;" : ""}background:${colorUsuario(u?.id)}">${esc(iniciales(u?.nombre || u?.id))}</span>`;
+
+// ── Buscador desplegable de usuarios o libros ──────────────────────
+let contadorSelector = 0;
+/**
+ * Crea un selector buscable en `cont`. tipo: "usuario" | "libro".
+ * opciones: etiqueta, ayuda, placeholder, bloquear(x) → motivo|null, nota(x) → html extra,
+ * alElegir(x), recordar (mostrar la tarjeta elegida; por defecto sí).
+ */
+function crearSelector(cont, tipo, o = {}) {
+  const n = ++contadorSelector, idIn = `sel-${n}`, idLista = `sel-lista-${n}`;
+  const estado = { elegido: null, activo: -1, visibles: [] };
+  const recordar = o.recordar !== false;
+  const fuente = () => [...(tipo === "usuario" ? datos.usuarios : datos.libros).values()]
+    .sort((a, b) => (tipo === "usuario" ? a.nombre : a.titulo).localeCompare(tipo === "usuario" ? b.nombre : b.titulo, "es"));
+  const texto = (x) => normalizar(tipo === "usuario" ? `${x.nombre} ${x.email} ${x.programa || ""} ${x.id}` : `${x.titulo} ${x.autor} ${x.categoria || ""} ${x.id}`);
+  const fila = (x) => tipo === "usuario"
+    ? `${avatar(x)}<span class="txt"><b>${esc(x.nombre)}</b><small>${esc(x.email)}${x.programa ? " · " + esc(x.programa) : ""}</small></span>`
+    : `${miniPortada(x)}<span class="txt"><b>${esc(x.titulo)}</b><small>${esc(x.autor)}${x.anio ? " · " + esc(x.anio) : ""}</small></span>`;
+  const derecha = (x) => o.nota ? o.nota(x) : tipo === "usuario"
+    ? `<span class="distintivo d-tinta" title="Préstamos activos">${x.prestamos_activos ?? 0} de ${x.max_prestamos ?? 3}</span>` : estadoLibro(x, true);
+
+  function pintar() {
+    if (estado.elegido && recordar) {
+      const x = estado.elegido;
+      cont.innerHTML = `<label>${esc(o.etiqueta || "")}</label><div class="elegido">${fila(x).replace('class="txt"', 'class="txt"')}<span>${derecha(x)}</span>
+        <button type="button" class="boton claro peq" data-cambiar>Cambiar</button></div>${o.ayuda ? `<small>${esc(o.ayuda)}</small>` : ""}`;
+      cont.querySelector("[data-cambiar]").onclick = () => { estado.elegido = null; pintar(); cont.querySelector("input").focus(); if (o.alLimpiar) o.alLimpiar(); };
+      return;
+    }
+    cont.innerHTML = `${o.etiqueta ? `<label for="${idIn}">${esc(o.etiqueta)}${o.obligatorio ? ' <span class="req">*</span>' : ""}</label>` : ""}
+      <div class="selector"><div class="caja">${icono("buscar")}<input id="${idIn}" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${idLista}" autocomplete="off"
+        placeholder="${esc(o.placeholder || (tipo === "usuario" ? "Escriba el nombre o correo…" : "Escriba el título o el autor…"))}"></div>
+        <ul class="selector-lista" id="${idLista}" role="listbox"></ul></div>${o.ayuda ? `<small>${esc(o.ayuda)}</small>` : ""}`;
+    const sel = cont.querySelector(".selector"), input = cont.querySelector("input"), lista = cont.querySelector("ul");
+    const abrir = () => { sel.classList.add("abierto"); input.setAttribute("aria-expanded", "true"); filtrar(); };
+    const cerrar = () => { sel.classList.remove("abierto"); input.setAttribute("aria-expanded", "false"); };
+    function filtrar() {
+      const q = normalizar(input.value);
+      estado.visibles = fuente().filter((x) => !q || texto(x).includes(q)).slice(0, 60);
+      estado.activo = estado.visibles.findIndex((x) => !(o.bloquear && o.bloquear(x)));
+      if (!datos.cargado) { lista.innerHTML = `<li class="sin-opciones">${cargando()}</li>`; return; }
+      lista.innerHTML = estado.visibles.length ? estado.visibles.map((x, i) => {
+        const motivo = o.bloquear && o.bloquear(x);
+        return `<li class="opcion ${i === estado.activo ? "activa" : ""}" role="option" id="${idLista}-${i}" data-i="${i}" aria-disabled="${Boolean(motivo)}" aria-selected="${i === estado.activo}">${fila(x)}
+          <span style="text-align:right">${derecha(x)}${motivo ? `<span class="por-que" style="display:block">${esc(motivo)}</span>` : ""}</span></li>`;
+      }).join("") : `<li class="sin-opciones">${tipo === "usuario" ? "Ningún usuario coincide." : "Ningún libro coincide."}</li>`;
+      input.setAttribute("aria-activedescendant", estado.activo >= 0 ? `${idLista}-${estado.activo}` : "");
+    }
+    function marcar(i) {
+      estado.activo = i;
+      lista.querySelectorAll(".opcion").forEach((li) => { const a = +li.dataset.i === i; li.classList.toggle("activa", a); li.setAttribute("aria-selected", a); if (a) li.scrollIntoView({ block: "nearest" }); });
+      input.setAttribute("aria-activedescendant", `${idLista}-${i}`);
+    }
+    function elegir(i) {
+      const x = estado.visibles[i];
+      if (!x || (o.bloquear && o.bloquear(x))) return;
+      cerrar();
+      if (recordar) { estado.elegido = x; pintar(); } else input.value = "";
+      if (o.alElegir) o.alElegir(x);
+    }
+    input.addEventListener("focus", abrir);
+    input.addEventListener("input", abrir);
+    input.addEventListener("keydown", (e) => {
+      const n = estado.visibles.length;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault(); if (!sel.classList.contains("abierto")) abrir();
+        let i = estado.activo;
+        for (let k = 0; k < n; k++) { i = (i + (e.key === "ArrowDown" ? 1 : -1) + n) % n; if (!(o.bloquear && o.bloquear(estado.visibles[i]))) break; }
+        marcar(i);
+      } else if (e.key === "Enter") { e.preventDefault(); if (sel.classList.contains("abierto")) elegir(estado.activo); }
+      else if (e.key === "Escape") { e.stopPropagation(); cerrar(); }
+      else if (e.key === "Tab") cerrar();
+    });
+    lista.addEventListener("mousedown", (e) => { const li = e.target.closest(".opcion"); if (li) { e.preventDefault(); elegir(+li.dataset.i); } });
+    document.addEventListener("mousedown", (e) => { if (!sel.contains(e.target)) cerrar(); });
+  }
+  pintar();
+  return {
+    valor: () => estado.elegido,
+    poner: (x) => { estado.elegido = x || null; pintar(); },
+    limpiar: () => { estado.elegido = null; pintar(); },
+    refrescar: () => { if (estado.elegido) { const id = estado.elegido.id; estado.elegido = (tipo === "usuario" ? datos.usuarios : datos.libros).get(id) || null; } pintar(); },
+  };
+}
+
+// ── Secciones, ayuda y bienvenida ──────────────────────────────────
+const VISTAS = {
+  panel: { titulo: "Inicio", sub: "Resumen del día y accesos rápidos", icono: "panel", resumen: "Resumen del día, accesos rápidos y lo más leído.",
+    ayuda: ["Use los <b>accesos rápidos</b> para las tareas de todos los días: prestar, recibir devoluciones, registrar usuarios y agregar libros.",
+      "«Hoy en la biblioteca» le avisa qué préstamos vencen pronto, cuáles están atrasados y cuánto hay en multas pendientes.",
+      "Haga clic en cualquier tarjeta o libro para ver el detalle."], cargar: () => cargarPanel() },
+  catalogo: { titulo: "Catálogo", sub: "Todos los libros de la biblioteca", icono: "libro", resumen: "Buscar libros, ver su disponibilidad y agregar o editar títulos.",
+    acciones: () => `<button class="boton vino" onclick="formLibro()">${icono("mas")}<span>Agregar libro</span></button>`,
+    ayuda: ["Escriba un <b>título</b> y la búsqueda empieza sola (no importan mayúsculas ni tildes). También puede filtrar por <b>autor</b>, <b>categoría</b> o <b>estado</b>: disponibles, agotados o con fila.",
+      "Cada libro muestra su estado: <span class='distintivo d-ok'>Disponible</span> se puede prestar, <span class='distintivo d-aviso'>Reservado</span> está guardado para quien hizo fila y <span class='distintivo d-mal'>Agotado</span> tiene todos los ejemplares prestados.",
+      "Abra un libro para prestarlo, reservarlo, editarlo o retirarlo del catálogo. La tecla <b>/</b> lleva el cursor a la búsqueda."], cargar: () => cargarCatalogo() },
+  usuarios: { titulo: "Usuarios", sub: "Estudiantes y personas registradas", icono: "usuarios", resumen: "Registrar estudiantes y ver sus préstamos y multas.",
+    acciones: () => `<button class="boton vino" onclick="formUsuario()">${icono("usuario-mas")}<span>Registrar usuario</span></button>`,
+    ayuda: ["Cada usuario puede tener hasta <b>3 libros prestados</b> a la vez.", "Abra un usuario para ver qué libros tiene, sus multas y para prestarle un libro.",
+      "Solo se puede eliminar a alguien que no tenga libros prestados ni reservas."], cargar: () => cargarUsuarios(true) },
+  prestamos: { titulo: "Préstamos", sub: "Libros prestados, vencidos y devueltos", icono: "prestamo", resumen: "Prestar libros, registrar devoluciones y renovar plazos.",
+    acciones: () => `<button class="boton vino" onclick="asistentePrestamo()">${icono("prestamo")}<span>Prestar libro</span></button>`,
+    ayuda: ["Cada préstamo dura <b>14 días</b>.", "<b>Renovar</b> amplía el plazo 14 días más (máximo 2 veces). No se puede si el préstamo está vencido o si alguien reservó el libro.",
+      `<b>Devolver</b> registra que el libro volvió. Si está atrasado se genera una multa de ${fmtCOP(MULTA_POR_DIA)} por cada día.`], cargar: () => cargarPrestamos(true) },
+  reservas: { titulo: "Reservas", sub: "Filas de espera para libros agotados", icono: "reserva", resumen: "Apartar libros agotados; el primero de la fila recibe el siguiente ejemplar.",
+    ayuda: ["Solo se reservan libros <b>agotados</b>. Si hay ejemplares, préstelo directamente.", "El tablero lista todos los libros que tienen fila, aunque la reserva se haya hecho en otro equipo. El nombre aparece si se reservó desde este navegador.",
+      "Cuando se devuelve un ejemplar, queda guardado para la primera persona de la fila. Al prestárselo, su reserva se cierra sola."], cargar: () => cargarReservas() },
+  multas: { titulo: "Multas", sub: "Cobros por retrasos, daños o pérdidas", icono: "multa", resumen: "Ver y registrar multas por retraso, daño o pérdida.",
+    ayuda: [`Las multas por retraso se crean solas al registrar la devolución: ${fmtCOP(MULTA_POR_DIA)} por día.`, "Use el formulario para multas por otros motivos (daños, pérdidas).",
+      "Consulte a un usuario para ver el detalle y su saldo pendiente."], cargar: () => cargarMultas() },
+  sistema: { titulo: "Sistema", sub: "Conexión, estado del servidor y rendimiento", icono: "servidor", resumen: "Conexión con el servidor, estado de los servicios y datos técnicos.",
+    acciones: () => `<button class="boton claro" onclick="cargarSistema()">${icono("recargar")}<span>Actualizar</span></button>`,
+    ayuda: ["Aquí se configura la dirección del servidor y se ve si todo funciona.", "La sección de rendimiento explica la memoria rápida (Redis) que acelera las consultas.",
+      "Active el <b>modo técnico</b> para ver en toda la aplicación de dónde viene cada dato (útil para la sustentación del proyecto)."], cargar: () => cargarSistema() },
+};
+let vistaActual = "panel";
+function mostrarVista() {
+  const nombre = (location.hash.slice(1) || "panel").split("?")[0];
+  const v = VISTAS[nombre] ? nombre : "panel";
+  vistaActual = v;
+  document.querySelectorAll(".vista").forEach((s) => s.classList.toggle("activa", s.id === "v-" + v));
+  document.querySelectorAll("#nav a").forEach((a) => { const on = a.dataset.vista === v; a.classList.toggle("activo", on); on ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"); });
+  $("titulo-vista").textContent = VISTAS[v].titulo;
+  $("sub-vista").textContent = VISTAS[v].sub;
+  $("acciones-barra").innerHTML = VISTAS[v].acciones ? VISTAS[v].acciones() : "";
+  document.body.classList.remove("menu-abierto");
+  document.title = `${VISTAS[v].titulo} · Biblioteca Unimag`;
+  let aviso = $("sin-conexion");
+  if (!aviso) {
+    aviso = document.createElement("div"); aviso.id = "sin-conexion"; aviso.className = "tarjeta"; aviso.setAttribute("role", "status");
+    document.querySelector(".vista").before(aviso);
+  }
+  const desconectado = !conexion.ok && v !== "sistema";
+  aviso.hidden = !desconectado;
+  if (desconectado) aviso.innerHTML = vacio("servidor", "La biblioteca no está conectada con el servidor", "Revise que el proyecto esté corriendo y abra la configuración para indicar o detectar la dirección del API.",
+    `<button class="boton vino" onclick="abrirConfig()">${icono("engranaje")}Abrir configuración</button>`);
+  document.querySelector(".vista.activa").style.display = desconectado ? "none" : "";
+  if (conexion.ok || v === "sistema") VISTAS[v].cargar();
+}
+window.addEventListener("hashchange", mostrarVista);
+$("abrir-menu").onclick = () => document.body.classList.add("menu-abierto");
+$("cortina").onclick = () => document.body.classList.remove("menu-abierto");
+$("btn-ayuda").onclick = () => {
+  const v = VISTAS[vistaActual];
+  abrirModal(`Ayuda · ${v.titulo}`, `<ul class="lista-ayuda">${v.ayuda.map((t) => `<li>${t}</li>`).join("")}</ul>
+    <p class="tenue" style="margin-top:14px">¿Primera vez? <a href="javascript:void 0" id="ver-bienvenida">Ver la guía de bienvenida</a>.</p>`,
+    `<button class="boton" data-cerrar>Entendido</button>`, { estrecho: true });
+  $("ver-bienvenida").onclick = bienvenida;
+};
+function bienvenida() {
+  abrirModal("Bienvenido a la Biblioteca Unimag", `<p style="margin-top:0">Esta aplicación le ayuda a llevar los <b>préstamos</b>, <b>devoluciones</b>, <b>reservas</b> y <b>multas</b> de la biblioteca. Así se organiza:</p>
+    <div class="secciones-ayuda">${Object.values(VISTAS).map((v) => `<div>${icono(v.icono)}<span><b>${v.titulo}</b>${esc(v.resumen)}</span></div>`).join("")}</div>
+    <div class="explica" style="margin:0">${icono("info")}<div><b>Para empezar:</b> registre a los usuarios, agregue los libros y luego use <b>Prestar libro</b> desde Inicio. En cada sección el botón <b>?</b> (arriba a la derecha) explica qué hacer.</div></div>`,
+    `<button class="boton vino" data-cerrar>${icono("check")}Empezar</button>`, { ancho: true, alCerrar: () => localStorage.setItem(CLAVE_BIENVENIDA, "1") });
+}
+
+// ── Configuración de la conexión ───────────────────────────────────
+async function probarConexion(url) {
+  try { return await api("GET", "/health", undefined, url); }
+  catch (e) { if (e.status === 503 && e.datos) return e.datos; return null; }   // 503 = funciona con fallas parciales
+}
+function pintarEstadoConexion(salud) {
+  const punto = $("punto-api"), txt = $("texto-api");
+  if (!salud) { punto.className = "punto mal"; txt.textContent = "Sin conexión"; return; }
+  punto.className = "punto " + (salud.estado === "ok" ? "ok" : "medio");
+  txt.textContent = salud.estado === "ok" ? "Conectado" : "Conectado con fallas";
+}
+async function conectar(url, { aviso = true } = {}) {
+  const salud = await probarConexion(url);
+  if (!salud) return false;
+  guardarBase(url); conexion.ok = true; pintarEstadoConexion(salud);
+  await refrescarDatos();
+  if (aviso) toast("exito", "Conectado con la biblioteca", salud.estado === "ok" ? "Todo funciona correctamente." : "Algunos servicios presentan fallas; revise la sección Sistema.");
+  return true;
+}
+function abrirConfig() {
+  abrirModal("Configuración", `
+    <div class="campo"><label for="cfg-url">Dirección del servidor (URL del API)</label>
+      <input id="cfg-url" class="mono" value="${esc(base())}" placeholder="http://localhost:4566/restapis/abc123/prod/_user_request_" spellcheck="false">
+      <small>Es el <b>ApiUrl</b> que muestra el despliegue. En el emulador local tiene la forma <span class="mono">http://localhost:4566/restapis/&lt;id&gt;/prod/_user_request_</span>.</small></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+      <button class="boton claro" id="cfg-detectar">${icono("buscar")}Detectar automáticamente</button>
+      <button class="boton claro" id="cfg-probar">${icono("servidor")}Probar conexión</button></div>
+    <div id="cfg-resultado" aria-live="polite" style="margin:10px 0 16px"></div>
+    <label class="interruptor" for="cfg-tecnico"><input type="checkbox" id="cfg-tecnico" ${tecnico() ? "checked" : ""}><span class="riel"></span>
+      <span><b>Modo técnico</b><span class="tenue">Muestra códigos internos y si cada dato salió de la memoria rápida (Redis) o de la base de datos (DynamoDB). Útil para la demostración del proyecto.</span></span></label>`,
+    `<button class="boton claro" data-cerrar>Cerrar</button><button class="boton vino" id="cfg-guardar">${icono("check")}Guardar y conectar</button>`);
+  const res = $("cfg-resultado");
+  $("cfg-tecnico").onchange = (e) => { ponerModoTecnico(e.target.checked); mostrarVista(); };
+  $("cfg-detectar").onclick = (e) => conCarga(e.currentTarget, async () => {
+    const url = await detectarApi();
+    if (url) { $("cfg-url").value = url; res.innerHTML = `<div class="aviso info">${icono("ok")}<div>Encontramos la biblioteca en el emulador local. Pulse <b>Guardar y conectar</b>.</div></div>`; }
+    else res.innerHTML = `<div class="aviso">${icono("info")}<div>No se pudo detectar automáticamente (el emulador no respondió o no permite esta consulta desde el navegador). Copie la dirección que muestra el despliegue (<b>ApiUrl</b>) o ejecute <span class="mono">awslocal apigateway get-rest-apis</span> para ver el id.</div></div>`;
+  });
+  $("cfg-probar").onclick = (e) => conCarga(e.currentTarget, async () => {
+    const s = await probarConexion($("cfg-url").value.trim().replace(/\/+$/, ""));
+    res.innerHTML = s ? `<div class="aviso info">${icono("ok")}<div>La dirección responde${s.estado === "ok" ? " y todos los servicios funcionan" : ", pero hay servicios con fallas"}.</div></div>`
+      : `<div class="aviso" style="background:var(--rojo-bg);border-color:#efc3c9;color:var(--rojo)">${icono("alerta")}<div>No hubo respuesta. Revise que el proyecto esté corriendo y que la dirección esté completa.</div></div>`;
+  });
+  $("cfg-guardar").onclick = (e) => conCarga(e.currentTarget, async () => {
+    const url = $("cfg-url").value.trim().replace(/\/+$/, "");
+    if (await conectar(url)) { cerrarModal(); mostrarVista(); }
+    else res.innerHTML = `<div class="aviso" style="background:var(--rojo-bg);border-color:#efc3c9;color:var(--rojo)">${icono("alerta")}<div>No se pudo conectar con esa dirección.</div></div>`;
+  });
+}
+$("abrir-config").onclick = abrirConfig;
+
+// ── INICIO ─────────────────────────────────────────────────────────
+let porPanel = "consultas";
+document.querySelectorAll("[data-rapida]").forEach((b) => b.onclick = () => ({
+  prestar: () => asistentePrestamo(), devolver: () => devolucionRapida(), usuario: () => formUsuario(), libro: () => formLibro(),
+})[b.dataset.rapida]());
+$("ver-vencidos").onclick = () => { estadoPrestamos.estado = "vencidos"; };
+async function cargarPanel() {
+  $("fecha-hoy").textContent = new Date().toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long" });
+  $("metricas").innerHTML = Array(4).fill('<div class="tarjeta metrica"><div class="esqueleto" style="height:110px"></div></div>').join("");
+  $("panel-hoy").innerHTML = `<li>${cargando()}</li>`; $("panel-vencidos").innerHTML = cargando(); $("panel-categorias").innerHTML = cargando();
+  const [, activos, vencidos, stats, cats] = await Promise.allSettled([
+    refrescarDatos(), recorrer("/prestamos?estado=activo", "prestamos"), recorrer("/prestamos/vencidos", "prestamos"),
+    api("GET", "/cache/stats"), api("GET", "/categorias"),
+  ]);
+  const libros = [...datos.libros.values()], usuarios = [...datos.usuarios.values()];
+  const act = activos.status === "fulfilled" ? activos.value.items : [];
+  const venc = vencidos.status === "fulfilled" ? vencidos.value.items : [];
+  const ejemplares = libros.reduce((s, l) => s + (l.ejemplares || 0), 0), libres = libros.reduce((s, l) => s + (l.disponibles || 0), 0);
+  const tarjeta = (c, ic, valor, etiqueta, nota, href, extra = "") => `<a class="tarjeta metrica ${c} ${extra}" href="${href}" style="text-decoration:none">
+    <div class="icono">${icono(ic)}</div><div class="valor">${valor}</div><div class="etiqueta">${etiqueta}</div><div class="nota">${nota}</div></a>`;
+  const s = stats.status === "fulfilled" ? stats.value : null;
+  $("metricas").innerHTML =
+    tarjeta("c-tinta", "libro", fmtNum(libros.length), "Títulos en el catálogo", `${fmtNum(libres)} de ${fmtNum(ejemplares)} ejemplares en estante`, "#catalogo") +
+    tarjeta("c-verde", "usuarios", fmtNum(usuarios.length), "Usuarios registrados", "Pueden llevar hasta 3 libros", "#usuarios") +
+    tarjeta("c-oro", "prestamo", activos.status === "fulfilled" ? fmtNum(act.length) : "—", "Libros prestados", "En manos de los usuarios", "#prestamos") +
+    tarjeta("c-rojo", "reloj", vencidos.status === "fulfilled" ? fmtNum(venc.length) : "—", "Préstamos vencidos", venc.length ? "Deben devolverse ya" : "Todo al día", "#prestamos") +
+    tarjeta("c-vino", "cache", s && s.hit_ratio != null ? Math.round(s.hit_ratio * 100) + "%" : "—", "Consultas desde caché", s ? `${fmtNum(s.hits)} aciertos de ${fmtNum(s.hits + s.misses)}` : "Redis no responde", "#sistema", "solo-tecnico");
+  actualizarContadorVencidos(venc.length);
+  pintarFilasInicio(librosConFila());
+  // Hoy
+  const hoy = hoyUTC();
+  const pronto = act.filter((p) => { const d = diasEntre(hoy, p.fecha_limite); return d >= 0 && d <= 2; });
+  const hoyPrestados = act.filter((p) => String(p.fecha_prestamo).slice(0, 10) === hoy).length;
+  const espera = libros.reduce((s2, l) => s2 + (l.reservas_pendientes || 0), 0);
+  const conMultas = usuarios.filter((u) => u.saldo_multas > 0), deuda = conMultas.reduce((s2, u) => s2 + u.saldo_multas, 0);
+  const agotados = libros.filter((l) => l.disponibles === 0).length;
+  const item = (n, clase, texto, enlace, accion) => `<li class="${clase}"><span class="n">${n}</span><span>${texto}</span>${enlace ? `<a href="${enlace}" ${accion ? `data-accion="${accion}"` : ""}>Ver</a>` : ""}</li>`;
+  $("panel-hoy").innerHTML =
+    item(fmtNum(hoyPrestados), "", hoyPrestados === 1 ? "libro prestado hoy" : "libros prestados hoy", "#prestamos") +
+    item(fmtNum(pronto.length), pronto.length ? "alerta" : "bien", pronto.length ? `${pronto.length === 1 ? "préstamo vence" : "préstamos vencen"} hoy o en los próximos 2 días` : "préstamos por vencer en los próximos 2 días", "#prestamos") +
+    item(fmtNum(venc.length), venc.length ? "alerta" : "bien", venc.length ? `${venc.length === 1 ? "préstamo está atrasado" : "préstamos están atrasados"}` : "préstamos atrasados", "#prestamos", "vencidos") +
+    item(fmtNum(espera), "", espera === 1 ? "persona esperando un libro reservado" : "personas esperando un libro reservado", "#reservas") +
+    item(fmtCOP(deuda).replace(/\s/g, " "), deuda ? "alerta" : "bien", conMultas.length ? `en multas pendientes de ${plural(conMultas.length, "usuario", "usuarios")}` : "en multas pendientes", "#multas") +
+    item(fmtNum(agotados), "", agotados === 1 ? "título agotado (todos sus ejemplares prestados)" : "títulos agotados (todos sus ejemplares prestados)", "#catalogo");
+  $("panel-hoy").querySelectorAll("[data-accion=vencidos]").forEach((a) => a.onclick = () => { estadoPrestamos.estado = "vencidos"; });
+  $("panel-hoy").querySelectorAll(".n").forEach((n) => { if (n.textContent.length > 6) n.style.fontSize = "1rem"; });
+  // Vencidos
+  if (vencidos.status === "fulfilled") {
+    const lista = venc.slice(0, 5);
+    $("panel-vencidos").innerHTML = lista.length ? `<div class="tabla-env"><table><thead><tr><th>Libro</th><th>Usuario</th><th>Debió volver</th><th class="ocultar-movil">Multa hasta hoy</th><th></th></tr></thead><tbody>
+      ${lista.map((p) => `<tr class="vencido"><td><div class="celda-libro">${miniPortada(datos.libros.get(p.item_id))}<b>${esc(p.titulo)}</b></div></td>
+        <td>${esc(nombreUsuario(p.usuario_id))}</td><td class="nw">${fmtFecha(p.fecha_limite)}<span class="relativo mal">${plazo(p.fecha_limite).texto}</span></td>
+        <td class="ocultar-movil nw"><b style="color:var(--rojo)">${fmtCOP(p.multa_estimada)}</b></td>
+        <td><button class="boton peq" data-devolver="${esc(p.id)}" title="Registrar que el libro volvió">${icono("devolver")}<span class="ocultar-movil">Devolver</span></button></td></tr>`).join("")}
+      </tbody></table></div>` : vacio("ok", "Ningún préstamo atrasado", "Todos los libros prestados están dentro del plazo.");
+    enlazarAccionesPrestamo($("panel-vencidos"), lista, () => cargarPanel());
+  } else $("panel-vencidos").innerHTML = errorBloque(vencidos.reason);
+  // Categorías
+  if (cats.status === "fulfilled") {
+    const c = cats.value.categorias || [];
+    $("panel-categorias").innerHTML = c.length ? `<div class="chips" style="margin:0">${c.map((x) => `<a class="chip" href="#catalogo" data-irse="${esc(x)}"><span class="muestra" style="background:${colorCategoria(x)}"></span>${esc(x)}</a>`).join("")}</div>`
+      : vacio("etiqueta", "Aún no hay categorías", "Se crean solas al agregar libros con categoría.");
+    $("panel-categorias").querySelectorAll("[data-irse]").forEach((a) => a.onclick = () => { estadoCatalogo.pendiente = { modo: "categoria", valor: a.dataset.irse }; });
+  } else $("panel-categorias").innerHTML = errorBloque(cats.reason);
+  cargarPopulares(porPanel, $("panel-populares"));
+}
+document.querySelectorAll("#panel-pop-tabs .pestana").forEach((b) => b.onclick = () => {
+  porPanel = b.dataset.por;
+  document.querySelectorAll("#panel-pop-tabs .pestana").forEach((x) => x.classList.toggle("activa", x === b));
+  cargarPopulares(porPanel, $("panel-populares"));
+});
+// GET /items/populares
+async function cargarPopulares(por, destino, n = 5) {
+  destino.innerHTML = cargando();
+  try {
+    const d = await api("GET", `/items/populares?por=${por}&n=${n}`);
+    const items = (d.items || []).filter((i) => datos.libros.has(i.id) || tecnico());
+    if (!items.length) { destino.innerHTML = vacio("estrella", "Todavía no hay datos", por === "consultas" ? "Aparecerán los libros que más se consultan." : "Aparecerán los libros que más se prestan."); return; }
+    const max = Math.max(...items.map((i) => i[por]));
+    destino.innerHTML = `<ol class="ranking">${items.map((i, k) => `<li data-id="${esc(i.id)}" tabindex="0" title="Ver el libro"><span class="pos">${k + 1}</span>
+      <div class="nom"><b>${esc(tituloLibro(i.id))}</b><div class="barra-progreso ${por === "prestamos" ? "vino" : ""}"><span style="width:${Math.max(6, (i[por] / max) * 100)}%"></span></div></div>
+      <span class="num" title="${por === "consultas" ? "Veces consultado" : "Veces prestado"}">${fmtNum(i[por])}</span></li>`).join("")}</ol>
+      <div class="tenue solo-tecnico" style="margin-top:10px">Sorted Set <span class="mono">ranking:items:${por}</span> ${fuenteBadge(d._fuente)}</div>`;
+    destino.querySelectorAll("li[data-id]").forEach((li) => { li.onclick = () => verLibro(li.dataset.id); li.onkeydown = (e) => { if (e.key === "Enter") verLibro(li.dataset.id); }; });
+  } catch (e) { destino.innerHTML = errorBloque(e); }
+}
+function actualizarContadorVencidos(n) {
+  const c = $("nav-vencidos"); c.hidden = !n; c.textContent = n;
+  $("n-vencidos").textContent = n;
+}
+function pintarFilasInicio(filas) {
+  const caja = $("panel-filas");
+  if (!filas.length) { caja.hidden = true; caja.innerHTML = ""; return; }
+  caja.hidden = false;
+  caja.className = "tarjeta";
+  caja.style.marginTop = "18px";
+  caja.innerHTML = `<h3>${icono("reserva")}Filas de espera <span class="der"><a href="#reservas" class="boton claro peq">Ver reservas</a></span></h3>
+    <div class="tiras">${filas.map((l) => `<a class="tira" href="#reservas" data-id="${esc(l.id)}">${miniPortada(l)}<span><b>${esc(l.titulo)}</b><span class="tenue">${plural(l.reservas_pendientes, "persona en espera", "personas en espera")}</span></span></a>`).join("")}</div>`;
+  caja.querySelectorAll("[data-id]").forEach((a) => { a.onclick = () => { estadoReservas.libro = a.dataset.id; }; });
+}
+/** Modal «Registrar devolución»: lista de préstamos en curso con buscador. */
+async function devolucionRapida() {
+  abrirModal("Registrar devolución", cargando("Buscando libros prestados…"), "", { ancho: true });
+  let lista;
+  try { lista = (await recorrer("/prestamos?estado=activo", "prestamos")).items; }
+  catch (e) { $("modal-cuerpo").innerHTML = errorBloque(e); return; }
+  if (!datos.cargado) await refrescarDatos();
+  $("modal-cuerpo").innerHTML = `<p style="margin-top:0">Busque el libro o el nombre de la persona que lo devuelve y pulse <b>Devolver</b>.</p>
+    <div class="campo"><label for="dev-filtro">Buscar</label><input id="dev-filtro" placeholder="Ej. «Cosmos» o «Ana»" autocomplete="off"></div><div id="dev-lista"></div>`;
+  const pintar = () => {
+    const q = normalizar($("dev-filtro").value);
+    const vis = lista.filter((p) => !q || normalizar(`${p.titulo} ${nombreUsuario(p.usuario_id)}`).includes(q));
+    $("dev-lista").innerHTML = vis.length ? tablaPrestamos(vis, { soloDevolver: true }) : vacio("prestamo", lista.length ? "Ningún préstamo coincide" : "No hay libros prestados", lista.length ? "Pruebe con otra palabra." : "");
+    enlazarAccionesPrestamo($("dev-lista"), vis, async () => { lista = (await recorrer("/prestamos?estado=activo", "prestamos")).items; pintar(); if (vistaActual === "panel") cargarPanel(); });
+  };
+  $("dev-filtro").oninput = pintar;
+  pintar();
+}
+
+// ── CATÁLOGO ───────────────────────────────────────────────────────
+// todos (GET /items) · autor (GET /items?autor=) · categoria (GET /categorias/{n}/items) · busqueda (GET /items/buscar)
+const estadoCatalogo = { modo: "todos", valor: "", estado: "", pila: [null], pagina: 0, siguiente: null, pendiente: null };
+let estanteToken = 0;
+function coincideEstado(l, estado) {
+  const espera = l.reservas_pendientes || 0;
+  if (estado === "disponible") return (l.disponibles || 0) > 0 && espera === 0;
+  if (estado === "agotado") return (l.disponibles || 0) === 0;
+  if (estado === "fila") return espera > 0;
+  return true;
+}
+function filtrarCatalogo(modo, valor) {
+  Object.assign(estadoCatalogo, { modo, valor, pila: [null], pagina: 0 });
+  if (modo !== "busqueda") $("q").value = "";
+  if (modo !== "autor") $("filtro-autor").value = "";
+  cargarCategorias(); cargarEstante();
+}
+function pintarFiltroEstado() {
+  document.querySelectorAll("#filtros-estado .chip").forEach((b) => {
+    const on = (b.dataset.estado || "") === (estadoCatalogo.estado || "");
+    b.classList.toggle("activo", on);
+    b.setAttribute("aria-pressed", String(on));
+  });
+}
+async function filtrarEstado(estado) {
+  estadoCatalogo.estado = estado;
+  estadoCatalogo.pagina = 0;
+  estadoCatalogo.pila = [null];
+  pintarFiltroEstado();
+  if (estado) await refrescarDatos();
+  cargarEstante();
+}
+async function cargarCatalogo() {
+  if (estadoCatalogo.pendiente) { Object.assign(estadoCatalogo, estadoCatalogo.pendiente, { pila: [null], pagina: 0 }); estadoCatalogo.pendiente = null; }
+  if (!datos.cargado) await refrescarDatos();
+  const autores = [...new Set([...datos.libros.values()].map((l) => l.autor))].sort((a, b) => a.localeCompare(b, "es"));
+  $("filtro-autor").innerHTML = `<option value="">Todos los autores</option>` + autores.map((a) => `<option ${estadoCatalogo.modo === "autor" && estadoCatalogo.valor === a ? "selected" : ""}>${esc(a)}</option>`).join("");
+  pintarFiltroEstado();
+  cargarCategorias();
+  await cargarEstante();
+}
+// GET /categorias
+async function cargarCategorias() {
+  const cont = $("chips-categorias");
+  try {
+    const d = await api("GET", "/categorias");
+    const activa = estadoCatalogo.modo === "categoria" ? normalizar(estadoCatalogo.valor) : null;
+    cont.innerHTML = `<button class="chip ${estadoCatalogo.modo === "todos" ? "activo" : ""}" data-cat="" aria-pressed="${estadoCatalogo.modo === "todos"}">Todos</button>` +
+      (d.categorias || []).map((c) => `<button class="chip ${activa === normalizar(c) ? "activo" : ""}" data-cat="${esc(c)}" aria-pressed="${activa === normalizar(c)}"><span class="muestra" style="background:${colorCategoria(c)}"></span>${esc(c)}</button>`).join("") + fuenteBadge(d._fuente);
+    cont.querySelectorAll(".chip").forEach((b) => b.onclick = () => filtrarCatalogo(b.dataset.cat ? "categoria" : "todos", b.dataset.cat));
+  } catch { cont.innerHTML = ""; }
+}
+async function cargarEstante() {
+  const token = ++estanteToken;
+  const est = $("estante"), cab = $("catalogo-cabecera"), pag = $("pag-catalogo");
+  est.innerHTML = `<div class="estante">${Array(8).fill('<div><div class="esqueleto" style="aspect-ratio:2/3"></div><div class="esqueleto" style="height:14px;margin-top:10px;width:80%"></div></div>').join("")}</div>`;
+  pag.innerHTML = "";
+  const { modo, valor, estado } = estadoCatalogo;
+  const nombresEstado = { disponible: "Disponibles", agotado: "Agotados", fila: "Con fila de espera" };
+  const titulos = { busqueda: `Resultados para «${esc(valor)}»`, autor: `Libros de ${esc(valor)}`, categoria: esc(valor), todos: "Todos los libros" };
+  const titulo = estado && modo === "todos" ? nombresEstado[estado] : `${titulos[modo]}${estado ? ` · ${nombresEstado[estado].toLowerCase()}` : ""}`;
+  const local = Boolean(estado) && modo !== "busqueda";
+  try {
+    let items, fuente = "", haySig = false, total = null;
+    if (local) {
+      let lista = [...datos.libros.values()];
+      if (modo === "autor") lista = lista.filter((l) => l.autor === valor);
+      if (modo === "categoria") lista = lista.filter((l) => normalizar(l.categoria) === normalizar(valor));
+      lista = lista.filter((l) => coincideEstado(l, estado)).sort((a, b) => a.titulo.localeCompare(b.titulo, "es"));
+      total = lista.length;
+      const ini = estadoCatalogo.pagina * TAM_PAGINA;
+      items = lista.slice(ini, ini + TAM_PAGINA);
+      haySig = ini + TAM_PAGINA < lista.length;
+    } else {
+      const cursor = estadoCatalogo.pila[estadoCatalogo.pagina];
+      const pagQ = `limite=${TAM_PAGINA}${cursor ? "&siguiente=" + enc(cursor) : ""}`;
+      const rutas = { busqueda: `/items/buscar?q=${enc(valor)}`, autor: `/items?autor=${enc(valor)}&${pagQ}`, categoria: `/categorias/${enc(valor)}/items?${pagQ}`, todos: `/items?${pagQ}` };
+      const d = await api("GET", rutas[modo]);
+      if (token !== estanteToken) return;
+      items = (d.items || []).map((l) => ({ ...(datos.libros.get(l.id) || {}), ...l }));
+      if (estado) items = items.filter((l) => coincideEstado(l, estado));
+      estadoCatalogo.siguiente = d.siguiente || null;
+      fuente = d._fuente || "";
+      haySig = Boolean(d.siguiente) && modo !== "busqueda";
+    }
+    if (token !== estanteToken) return;
+    const hayAnt = estadoCatalogo.pagina > 0 && (local || modo !== "busqueda");
+    const cuenta = total == null ? items.length : total;
+    cab.innerHTML = `<h2 style="font-size:1.25rem">${titulo}</h2><span class="distintivo d-neutro">${total == null && (haySig || hayAnt) ? `${plural(cuenta, "libro", "libros")} en esta página` : plural(cuenta, "libro", "libros")}</span>${fuenteBadge(fuente)}
+      ${modo !== "todos" ? `<button class="boton claro peq" id="limpiar-filtro">${icono("cerrar")}Ver todos</button>` : ""}
+      ${estado ? `<button class="boton claro peq" id="limpiar-estado">${icono("cerrar")}Quitar estado</button>` : ""}`;
+    if ($("limpiar-filtro")) $("limpiar-filtro").onclick = () => filtrarCatalogo("todos", "");
+    if ($("limpiar-estado")) $("limpiar-estado").onclick = () => filtrarEstado("");
+    if (!items.length) {
+      est.innerHTML = modo === "todos" && !estado
+        ? vacio("libro", "Aún no hay libros en el catálogo", "Agregue el primero para empezar a prestar.", `<button class="boton vino" onclick="formLibro()">${icono("mas")}Agregar el primer libro</button>`)
+        : vacio("buscar", estado ? "Ningún libro con ese estado" : "No encontramos libros", estado ? "Pruebe otro filtro o quite el estado." : "Revise la ortografía o pruebe con otra palabra del título.",
+          `<button class="boton claro" onclick="filtrarCatalogo('todos','');filtrarEstado('')">Ver todo el catálogo</button>`);
+      return;
+    }
+    est.innerHTML = `<div class="estante">${items.map((l) => `<div class="libro" tabindex="0" role="button" aria-label="${esc(l.titulo)} de ${esc(l.autor)}" data-id="${esc(l.id)}">${portada(l)}
+      <div class="pie"><b title="${esc(l.titulo)}">${esc(l.titulo)}</b><span>${esc(l.autor)}${l.anio ? " · " + esc(l.anio) : ""}</span><div class="estado">${estadoLibro(l)}</div></div></div>`).join("")}</div>`;
+    est.querySelectorAll(".libro").forEach((el) => { el.onclick = () => verLibro(el.dataset.id); el.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); verLibro(el.dataset.id); } }; });
+    if (hayAnt || haySig) {
+      pag.innerHTML = `<span>Página ${estadoCatalogo.pagina + 1}</span>
+        <button class="boton claro peq" id="cat-ant" ${hayAnt ? "" : "disabled"}>${icono("izq")}Anterior</button>
+        <button class="boton claro peq" id="cat-sig" ${haySig ? "" : "disabled"}>Siguiente${icono("der")}</button>`;
+      $("cat-ant").onclick = () => { estadoCatalogo.pagina--; cargarEstante(); };
+      $("cat-sig").onclick = () => {
+        if (!local) estadoCatalogo.pila[estadoCatalogo.pagina + 1] = estadoCatalogo.siguiente;
+        estadoCatalogo.pagina++;
+        cargarEstante();
+      };
+    }
+  } catch (e) { if (token !== estanteToken) return; cab.innerHTML = ""; est.innerHTML = errorBloque(e); }
+}
+let buscaTimer = null;
+$("form-buscar").onsubmit = (e) => {
+  e.preventDefault();
+  clearTimeout(buscaTimer);
+  const q = $("q").value.trim();
+  if (!q) return filtrarCatalogo("todos", "");
+  if (q.length < 2) { toast("aviso", "Escriba un poco más", "La búsqueda necesita al menos 2 letras."); return; }
+  filtrarCatalogo("busqueda", q);
+};
+$("q").addEventListener("input", () => {
+  clearTimeout(buscaTimer);
+  const q = $("q").value.trim();
+  buscaTimer = setTimeout(() => {
+    if ($("q").value.trim() !== q) return;
+    if (!q) { if (estadoCatalogo.modo === "busqueda") filtrarCatalogo("todos", ""); return; }
+    if (q.length < 2 || (estadoCatalogo.modo === "busqueda" && estadoCatalogo.valor === q)) return;
+    filtrarCatalogo("busqueda", q);
+  }, 400);
+});
+$("filtro-autor").onchange = (e) => filtrarCatalogo(e.target.value ? "autor" : "todos", e.target.value);
+document.querySelectorAll("#filtros-estado .chip").forEach((b) => { b.onclick = () => filtrarEstado(b.dataset.estado || ""); });
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey || vistaActual !== "catalogo") return;
+  const tag = document.activeElement && document.activeElement.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+  e.preventDefault();
+  $("q").focus();
+});
+
+// GET /items/{id}
+async function verLibro(id) {
+  abrirModal("Libro", cargando("Abriendo el libro…"), "", { ancho: true });
+  let l;
+  try { l = await api("GET", `/items/${enc(id)}`); }
+  catch (e) { $("modal-cuerpo").innerHTML = errorBloque(e); return; }
+  datos.libros.set(l.id, { ...datos.libros.get(l.id), ...l });
+  $("modal-extra").innerHTML = fuenteBadge(l._fuente);
+  const espera = l.reservas_pendientes || 0;
+  let consejo;
+  if (l.disponibles > 0 && !espera) consejo = `Hay ${plural(l.disponibles, "ejemplar disponible", "ejemplares disponibles")}: se puede prestar ahora.`;
+  else if (l.disponibles > 0) consejo = `Hay un ejemplar guardado para ${espera === 1 ? "la persona que lo reservó" : `las ${espera} personas en la fila`}. Solo se le puede prestar a quien sigue en la fila.`;
+  else consejo = `Todos los ejemplares están prestados${espera ? ` y hay ${plural(espera, "persona", "personas")} en la fila` : ""}. Puede reservarlo para un usuario.`;
+  const ficha = [["Categoría", esc(l.categoria || "Sin categoría")], ["Año", esc(l.anio || "—")], ["Editorial", esc(l.editorial || "—")], ["Género", esc(l.genero || "—")], ["ISBN", l.isbn ? esc(l.isbn) : "—"]];
+  $("modal-cuerpo").innerHTML = `<div class="detalle-libro">${portada(l, "grande")}<div class="info">
+      <h3>${esc(l.titulo)}</h3><div class="autor">${esc(l.autor)}</div><div>${estadoLibro(l)}</div>
+      <div class="kv"><div><b>${fmtNum(l.ejemplares)}</b><span>Ejemplares</span></div><div><b>${fmtNum(l.disponibles)}</b><span>En estante</span></div><div><b>${fmtNum(l.prestados)}</b><span>Prestados</span></div></div>
+      <div class="aviso info" style="margin-bottom:12px">${icono("info")}<div>${consejo}${espera ? `<div class="tenue" style="margin-top:4px">${resumenNombresFila(l)}</div>` : ""}</div></div>
+      ${l.descripcion ? `<p class="descripcion">${esc(l.descripcion)}</p>` : ""}
+      <dl class="datos">${ficha.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}
+        <dt class="solo-tecnico">Código</dt><dd class="solo-tecnico mono">${esc(l.id)}</dd><dt class="solo-tecnico">Registrado</dt><dd class="solo-tecnico">${fmtFecha(l.creado_en, { hora: true })}</dd></dl>
+    </div></div>`;
+  const puedePrestar = l.disponibles > 0, puedeReservar = !(l.disponibles > 0 && !espera);
+  ponerPie(`<button class="boton peligro" id="btn-borrar-libro" title="Retirar este libro del catálogo">${icono("borrar")}Retirar</button>
+    <button class="boton claro" id="btn-editar-libro">${icono("editar")}Editar</button><span style="flex:1"></span>
+    <button class="boton claro solo-tecnico" id="btn-recargar-libro" title="La segunda lectura sale de la caché">${icono("recargar")}Consultar de nuevo</button>
+    ${espera ? `<button class="boton claro" id="btn-fila">${icono("usuarios")}Ver fila</button>` : ""}
+    ${puedeReservar ? `<button class="boton ${puedePrestar ? "claro" : "vino"}" id="btn-reservar">${icono("reserva")}Reservar</button>` : ""}
+    ${puedePrestar ? `<button class="boton vino" id="btn-prestar">${icono("prestamo")}Prestar este libro</button>` : ""}`);
+  $("btn-editar-libro").onclick = () => formLibro(l);
+  $("btn-recargar-libro").onclick = () => verLibro(l.id);
+  $("btn-borrar-libro").onclick = () => eliminarLibro(l);
+  if ($("btn-prestar")) $("btn-prestar").onclick = () => asistentePrestamo({ libro: datos.libros.get(l.id) });
+  if ($("btn-reservar")) $("btn-reservar").onclick = () => reservarDesdeLibro(l);
+  if ($("btn-fila")) $("btn-fila").onclick = () => { cerrarModal(); location.hash = "#reservas"; setTimeout(() => { selFila?.poner(datos.libros.get(l.id)); verFila(l.id); }, 50); };
+}
+function reservarDesdeLibro(l) {
+  abrirModal("Reservar libro", `<div class="celda-libro" style="margin-bottom:14px">${miniPortada(l)}<div><b>${esc(l.titulo)}</b><small>${esc(l.autor)}</small></div></div>
+    <div class="campo" id="sel-res-libro"></div><p class="tenue" style="display:block">Quedará en la fila de espera y se le guardará un ejemplar cuando le toque.</p>`,
+    `<button class="boton claro" data-cerrar>Cancelar</button><button class="boton vino" id="res-ok">${icono("reserva")}Reservar</button>`, { estrecho: true });
+  const sel = crearSelector($("sel-res-libro"), "usuario", { etiqueta: "¿Para quién es la reserva?", obligatorio: true });
+  $("res-ok").onclick = async (e) => {
+    const u = sel.valor();
+    if (!u) return toast("aviso", "Falta el usuario", "Elija para quién es la reserva.");
+    if (await crearReserva(u.id, l.id, e.currentTarget)) verLibro(l.id);
+  };
+}
+// POST /items · PUT /items/{id}
+function formLibro(actual) {
+  const v = (k) => esc(actual?.[k] ?? "");
+  const editar = Boolean(actual);
+  const cats = [...new Set([...datos.libros.values()].map((l) => l.categoria).filter(Boolean))].sort();
+  const campo = (nombre, etiqueta, ayuda, attrs = "", req = false) => `<div class="campo"><label for="f-${nombre}">${etiqueta}${req ? ' <span class="req">*</span>' : ""}</label><input id="f-${nombre}" name="${nombre}" value="${v(nombre)}" ${req ? "required" : ""} ${attrs}>${ayuda ? `<small>${ayuda}</small>` : ""}</div>`;
+  abrirModal(editar ? "Editar libro" : "Agregar libro", `<form id="form-libro">
+    <div class="fila-campos">${campo("titulo", "Título", "", 'placeholder="Ej. Cien años de soledad"', true)}${campo("autor", "Autor", "Nombre y apellido", 'placeholder="Ej. Gabriel García Márquez"', true)}</div>
+    <div class="fila-campos tres">
+      ${campo("categoria", "Categoría", "Elija una o escriba una nueva", 'list="sug-cat" maxlength="50" placeholder="Ej. Novela"')}
+      ${campo("anio", "Año de publicación", "", 'type="number" min="1" placeholder="Ej. 1967"')}
+      ${campo("ejemplares", "Ejemplares", editar ? `Copias físicas. Mínimo ${actual.prestados || 0} (prestados ahora)` : "Cuántas copias tiene la biblioteca", `type="number" min="${editar ? actual.prestados || 0 : 1}" max="1000" placeholder="1"`)}
+      ${campo("editorial", "Editorial", "Opcional", 'placeholder="Ej. Sudamericana"')}${campo("genero", "Género", "Opcional", 'placeholder="Ej. Realismo mágico"')}${campo("isbn", "ISBN", "Opcional. Está en el reverso del libro", 'placeholder="Ej. 978-84-376-0494-7"')}
+    </div>
+    <div class="campo"><label for="f-descripcion">Reseña</label><textarea id="f-descripcion" name="descripcion" placeholder="Opcional. Unas líneas sobre el libro">${v("descripcion")}</textarea></div>
+    ${editar ? "" : `<div class="campo solo-tecnico"><label for="f-id">Código interno</label><input id="f-id" name="id" class="mono" pattern="[A-Za-z0-9_\\-]{1,64}" placeholder="Se genera solo si lo deja vacío"></div>`}
+    <datalist id="sug-cat">${cats.map((c) => `<option value="${esc(c)}">`).join("")}</datalist></form>`,
+    `<button class="boton claro" data-cerrar>Cancelar</button><button class="boton vino" type="submit" form="form-libro">${icono("check")}${editar ? "Guardar cambios" : "Agregar al catálogo"}</button>`, { ancho: true });
+  $("form-libro").onsubmit = async (e) => {
+    e.preventDefault();
+    const cuerpo = {};
+    for (const [k, crudo] of new FormData(e.target)) {
+      const val = String(crudo).trim(), numero = k === "anio" || k === "ejemplares";
+      if (val === "") continue;                                         // el API no acepta textos vacíos
+      if (editar && String(actual[k] ?? "") === val) continue;          // solo lo que cambió
+      cuerpo[k] = numero ? parseInt(val, 10) : val;
+    }
+    if (editar && !Object.keys(cuerpo).length) { toast("aviso", "No hay cambios", "No modificó ningún dato."); return; }
+    await conCarga($("modal-pie").querySelector("[type=submit]"), async () => {
+      try {
+        const l = editar ? await api("PUT", `/items/${enc(actual.id)}`, cuerpo) : await api("POST", "/items", cuerpo);
+        toast("exito", editar ? "Cambios guardados" : "Libro agregado al catálogo", `«${esc(l.titulo)}»`);
+        await refrescarDatos();
+        if (vistaActual === "catalogo") cargarCatalogo();
+        verLibro(l.id);
+      } catch (err) { errorToast(err, editar ? "No se pudieron guardar los cambios" : "No se pudo agregar el libro"); }
+    });
+  };
+}
+// DELETE /items/{id}
+async function eliminarLibro(l) {
+  if (!await confirmar("Retirar libro del catálogo", `¿Seguro que quiere retirar <b>«${esc(l.titulo)}»</b>? Dejará de aparecer en el catálogo. No se puede retirar si tiene ejemplares prestados o personas en la fila.`, "Retirar libro")) return;
+  try {
+    await api("DELETE", `/items/${enc(l.id)}`);
+    toast("exito", "Libro retirado", `«${esc(l.titulo)}» ya no está en el catálogo.`);
+    cerrarModal(); await refrescarDatos();
+    if (vistaActual === "catalogo") cargarCatalogo();
+  } catch (e) { errorToast(e, "No se pudo retirar el libro"); }
+}
+
+// ── USUARIOS ───────────────────────────────────────────────────────
+const estadoUsuarios = { pila: [null], pagina: 0, siguiente: null };
+let selBuscarUsuario = null;
+// GET /usuarios (paginado)
+async function cargarUsuarios(reiniciar = false) {
+  if (reiniciar) Object.assign(estadoUsuarios, { pila: [null], pagina: 0 });
+  if (!selBuscarUsuario) selBuscarUsuario = crearSelector($("sel-buscar-usuario"), "usuario", { recordar: false, placeholder: "Buscar un usuario por nombre o correo…", alElegir: (u) => verUsuario(u.id) });
+  const cont = $("tabla-usuarios"), pag = $("pag-usuarios");
+  cont.innerHTML = cargando(); pag.innerHTML = "";
+  const cursor = estadoUsuarios.pila[estadoUsuarios.pagina];
+  try {
+    const d = await api("GET", `/usuarios?limite=10${cursor ? "&siguiente=" + enc(cursor) : ""}`);
+    estadoUsuarios.siguiente = d.siguiente || null;
+    const us = d.usuarios || [];
+    if (!us.length) { cont.innerHTML = `<div class="tarjeta">${vacio("usuarios", "Aún no hay usuarios", "Registre al primero para poder prestarle libros.", `<button class="boton vino" onclick="formUsuario()">${icono("usuario-mas")}Registrar el primer usuario</button>`)}</div>`; return; }
+    cont.innerHTML = `<div class="tabla-env"><table><thead><tr><th>Usuario</th><th class="ocultar-movil">Programa</th><th title="Libros que tiene ahora, de un máximo">Libros prestados</th><th>Multas</th><th></th></tr></thead><tbody>
+      ${us.map((u) => `<tr class="clic" data-id="${esc(u.id)}" tabindex="0" title="Abrir la ficha de ${esc(u.nombre)}"><td><div class="celda-libro">${avatar(u)}<div><b>${esc(u.nombre)}</b><small>${esc(u.email)} ${codigo(u.id)}</small></div></div></td>
+        <td class="ocultar-movil">${esc(u.programa || "—")}</td>
+        <td><span class="distintivo ${u.prestamos_activos >= u.max_prestamos ? "d-aviso" : "d-tinta"}">${u.prestamos_activos ?? 0} de ${u.max_prestamos ?? 3}</span>${u.prestamos_activos >= u.max_prestamos ? '<span class="relativo aviso">Llegó al máximo</span>' : ""}</td>
+        <td>${u.saldo_multas ? `<span class="distintivo d-mal">Debe ${fmtCOP(u.saldo_multas)}</span>` : `<span class="distintivo d-ok">Al día</span>`}</td>
+        <td><div class="acciones-fila"><button class="boton claro peq" data-accion="editar" title="Editar datos" aria-label="Editar a ${esc(u.nombre)}">${icono("editar")}</button><button class="boton peligro peq" data-accion="borrar" title="Eliminar usuario" aria-label="Eliminar a ${esc(u.nombre)}">${icono("borrar")}</button></div></td></tr>`).join("")}
+      </tbody></table></div>`;
+    cont.querySelectorAll("tr[data-id]").forEach((tr) => {
+      const u = us.find((x) => x.id === tr.dataset.id);
+      tr.onclick = (e) => { const acc = e.target.closest("[data-accion]")?.dataset.accion; if (acc === "editar") formUsuario(u); else if (acc === "borrar") eliminarUsuario(u); else verUsuario(u.id); };
+      tr.onkeydown = (e) => { if (e.key === "Enter" && e.target === tr) verUsuario(u.id); };
+    });
+    if (d.siguiente || estadoUsuarios.pagina) {
+      pag.innerHTML = `<span>Página ${estadoUsuarios.pagina + 1}</span>${fuenteBadge(d._fuente)}
+        <button class="boton claro peq" id="us-ant" ${estadoUsuarios.pagina ? "" : "disabled"}>${icono("izq")}Anterior</button>
+        <button class="boton claro peq" id="us-sig" ${d.siguiente ? "" : "disabled"}>Siguiente${icono("der")}</button>`;
+      $("us-ant").onclick = () => { estadoUsuarios.pagina--; cargarUsuarios(); };
+      $("us-sig").onclick = () => { estadoUsuarios.pila[estadoUsuarios.pagina + 1] = estadoUsuarios.siguiente; estadoUsuarios.pagina++; cargarUsuarios(); };
+    } else pag.innerHTML = `<span>${plural(us.length, "usuario", "usuarios")}</span>${fuenteBadge(d._fuente)}`;
+  } catch (e) { cont.innerHTML = `<div class="tarjeta">${errorBloque(e)}</div>`; }
+}
+// POST /usuarios · PUT /usuarios/{id}
+function formUsuario(actual) {
+  const editar = Boolean(actual), v = (k) => esc(actual?.[k] ?? "");
+  abrirModal(editar ? "Editar usuario" : "Registrar usuario", `<form id="form-usuario">
+      <div class="campo"><label for="u-nombre">Nombre completo <span class="req">*</span></label><input id="u-nombre" name="nombre" required value="${v("nombre")}" placeholder="Ej. Ana María Pérez" autocomplete="name"></div>
+      <div class="campo"><label for="u-email">Correo electrónico <span class="req">*</span></label><input id="u-email" name="email" type="email" required value="${v("email")}" placeholder="Ej. ana.perez@unimag.edu.co" autocomplete="email"><small>Se usa para identificar al usuario y avisarle</small></div>
+      <div class="campo"><label for="u-programa">Programa académico</label><input id="u-programa" name="programa" value="${v("programa")}" placeholder="Ej. Ingeniería de Sistemas"><small>Opcional</small></div>
+      ${editar ? "" : `<div class="campo solo-tecnico"><label for="u-id">Código interno</label><input id="u-id" name="id" class="mono" pattern="[A-Za-z0-9_\\-]{1,64}" placeholder="Se genera solo si lo deja vacío"></div>`}
+    </form>`,
+    `<button class="boton claro" data-cerrar>Cancelar</button><button class="boton vino" type="submit" form="form-usuario">${icono("check")}${editar ? "Guardar cambios" : "Registrar"}</button>`, { estrecho: true });
+  $("form-usuario").onsubmit = async (e) => {
+    e.preventDefault();
+    const cuerpo = {};
+    for (const [k, crudo] of new FormData(e.target)) {
+      const val = String(crudo).trim();
+      if (val !== "" && (!editar || val !== String(actual[k] ?? ""))) cuerpo[k] = val;
+    }
+    if (editar && !Object.keys(cuerpo).length) { toast("aviso", "No hay cambios", "No modificó ningún dato."); return; }
+    await conCarga($("modal-pie").querySelector("[type=submit]"), async () => {
+      try {
+        const u = editar ? await api("PUT", `/usuarios/${enc(actual.id)}`, cuerpo) : await api("POST", "/usuarios", cuerpo);
+        toast("exito", editar ? "Datos actualizados" : "Usuario registrado", editar ? `Se guardaron los cambios de <b>${esc(u.nombre)}</b>.` : `<b>${esc(u.nombre)}</b> ya puede pedir libros prestados.`);
+        await refrescarDatos();
+        if (vistaActual === "usuarios") cargarUsuarios();
+        verUsuario(u.id);
+      } catch (err) { errorToast(err, editar ? "No se pudieron guardar los cambios" : "No se pudo registrar"); }
+    });
+  };
+}
+// DELETE /usuarios/{id}
+async function eliminarUsuario(u) {
+  if (!await confirmar("Eliminar usuario", `¿Seguro que quiere eliminar a <b>${esc(u.nombre)}</b>? También se borra su historial de préstamos y multas. No se puede si tiene libros prestados o reservas.`, "Eliminar usuario")) return;
+  try {
+    await api("DELETE", `/usuarios/${enc(u.id)}`);
+    toast("exito", "Usuario eliminado", `Se eliminó a <b>${esc(u.nombre)}</b> y su historial.`);
+    cerrarModal(); await refrescarDatos();
+    if (vistaActual === "usuarios") cargarUsuarios();
+  } catch (e) { errorToast(e, "No se pudo eliminar"); }
+}
+// GET /usuarios/{id} + préstamos + multas
+async function verUsuario(id, pestana = "prestamos") {
+  abrirModal("Ficha del usuario", cargando("Abriendo la ficha…"), "", { ancho: true });
+  let u;
+  try { u = await api("GET", `/usuarios/${enc(id)}`); }
+  catch (e) { $("modal-cuerpo").innerHTML = errorBloque(e); return; }
+  datos.usuarios.set(u.id, { ...datos.usuarios.get(u.id), ...u });
+  $("modal-extra").innerHTML = fuenteBadge(u._fuente);
+  const lleno = u.prestamos_activos >= u.max_prestamos;
+  const reservas = reservasLocales().filter((r) => r.usuario_id === u.id);
+  $("modal-cuerpo").innerHTML = `<div style="display:flex;gap:16px;align-items:center">${avatar(u, 64)}
+      <div><h3 style="font-size:1.45rem">${esc(u.nombre)}</h3><div class="tenue">${esc(u.email)}${u.programa ? " · " + esc(u.programa) : ""} ${codigo(u.id)}</div><div class="tenue">Registrado ${haceCuanto(u.creado_en)}</div></div></div>
+    <div class="kv"><div><b>${u.prestamos_activos ?? 0} de ${u.max_prestamos ?? 3}</b><span>Libros prestados</span></div>
+      <div><b style="color:${u.saldo_multas ? "var(--rojo)" : "var(--verde)"}">${u.saldo_multas ? fmtCOP(u.saldo_multas) : "Al día"}</b><span>Multas pendientes</span></div>
+      <div><b>${reservas.length}</b><span title="Hechas desde este equipo">Reservas</span></div></div>
+    ${lleno ? `<div class="aviso" style="margin-bottom:12px">${icono("info")}<div>Tiene el máximo de libros prestados. Para llevarse otro debe devolver uno.</div></div>` : ""}
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+      <div class="pestanas" id="ficha-tabs" role="tablist"><button class="pestana" data-p="prestamos" role="tab">${icono("prestamo")}Préstamos</button><button class="pestana" data-p="multas" role="tab">${icono("multa")}Multas</button></div>
+      <label for="ficha-estado" style="position:absolute;left:-9999px">Mostrar</label>
+      <select id="ficha-estado" style="width:auto"><option value="activo">Libros que tiene ahora</option><option value="devuelto">Ya devueltos</option><option value="">Todo el historial</option></select>
+    </div><div id="ficha-contenido"></div>`;
+  ponerPie(`<button class="boton peligro" id="ficha-borrar">${icono("borrar")}Eliminar</button><button class="boton claro" id="ficha-editar">${icono("editar")}Editar datos</button><span style="flex:1"></span>
+    <button class="boton claro" id="ficha-multa">${icono("multa")}Registrar multa</button>
+    <button class="boton vino" id="ficha-prestar" ${lleno ? 'disabled title="Tiene el máximo de libros prestados"' : ""}>${icono("prestamo")}Prestarle un libro</button>`);
+  $("ficha-borrar").onclick = () => eliminarUsuario(u);
+  $("ficha-editar").onclick = () => formUsuario(u);
+  $("ficha-prestar").onclick = () => asistentePrestamo({ usuario: datos.usuarios.get(u.id) });
+  $("ficha-multa").onclick = () => { cerrarModal(); location.hash = "#multas"; setTimeout(() => { selMultaUsuario?.poner(datos.usuarios.get(u.id)); cargarPrestamosParaMulta(u.id); $("m-monto").focus(); }, 60); };
+  const mostrar = (p) => {
+    document.querySelectorAll("#ficha-tabs .pestana").forEach((b) => { b.classList.toggle("activa", b.dataset.p === p); b.setAttribute("aria-selected", b.dataset.p === p); });
+    $("ficha-estado").style.display = p === "prestamos" ? "" : "none";
+    if (p === "prestamos") fichaPrestamos(u.id); else fichaMultas(u.id);
+  };
+  document.querySelectorAll("#ficha-tabs .pestana").forEach((b) => b.onclick = () => mostrar(b.dataset.p));
+  $("ficha-estado").onchange = () => fichaPrestamos(u.id);
+  mostrar(pestana);
+}
+async function fichaPrestamos(uid) {
+  const cont = $("ficha-contenido"); cont.innerHTML = cargando();
+  const estado = $("ficha-estado").value;
+  try {
+    const d = await api("GET", `/usuarios/${enc(uid)}/prestamos${estado ? "?estado=" + estado : ""}`);
+    const lista = d.prestamos || [];
+    cont.innerHTML = lista.length ? tablaPrestamos(lista, { sinUsuario: true }) + `<div style="margin-top:8px">${fuenteBadge(d._fuente)}</div>`
+      : vacio("prestamo", estado === "activo" ? "No tiene libros prestados" : "Sin préstamos para mostrar", estado === "activo" ? "Puede prestarle uno con el botón de abajo." : "");
+    enlazarAccionesPrestamo(cont, lista, () => verUsuario(uid));
+  } catch (e) { cont.innerHTML = errorBloque(e); }
+}
+async function fichaMultas(uid) {
+  const cont = $("ficha-contenido"); cont.innerHTML = cargando();
+  try { cont.innerHTML = tablaMultas(await api("GET", `/usuarios/${enc(uid)}/multas`)); }
+  catch (e) { cont.innerHTML = errorBloque(e); }
+}
+
+// ── PRÉSTAMOS ──────────────────────────────────────────────────────
+const estadoPrestamos = { estado: "activo", pila: [null], pagina: 0, siguiente: null, lista: [] };
+const motivoNoRenovar = (p) => plazo(p.fecha_limite).dias < 0 ? "Está vencido: primero debe devolverse"
+  : (p.renovaciones || 0) >= MAX_RENOVACIONES ? `Ya se renovó ${MAX_RENOVACIONES} veces, el máximo` : "";
+function tablaPrestamos(lista, { sinUsuario = false, soloDevolver = false } = {}) {
+  return `<div class="tabla-env"><table class="tabla-tarjetas"><thead><tr><th>Libro</th>${sinUsuario ? "" : "<th>Usuario</th>"}<th class="ocultar-movil">Prestado</th><th>Devolver antes de</th><th>Estado</th>${soloDevolver ? "" : '<th class="ocultar-movil" title="Veces que se amplió el plazo">Renovado</th>'}<th></th></tr></thead><tbody>
+  ${lista.map((p) => {
+    const activo = p.estado === "ACTIVO", pz = plazo(p.fecha_limite), venc = activo && pz.dias < 0, noRen = motivoNoRenovar(p);
+    const acciones = activo ? `${soloDevolver ? "" : `<button class="boton claro peq" data-renovar="${esc(p.id)}" ${noRen ? `disabled title="${esc(noRen)}"` : `title="Amplía el plazo ${DIAS_PRESTAMO} días más"`}>${icono("renovar")}<span class="ocultar-movil">Renovar</span></button>`}
+      <button class="boton peq" data-devolver="${esc(p.id)}" title="Registrar que el libro volvió${venc ? "; se generará una multa por el retraso" : ""}">${icono("devolver")}<span class="ocultar-movil">Devolver</span></button>` : "";
+    return `<tr class="clic ${venc ? "vencido" : ""}" data-prestamo="${esc(p.id)}" tabindex="0" title="Ver el préstamo">
+      <td><div class="celda-libro">${miniPortada(datos.libros.get(p.item_id))}<div><b>${esc(p.titulo)}</b><small>${codigo(p.id)}</small></div></div></td>
+      ${sinUsuario ? "" : `<td data-et="Usuario">${esc(nombreUsuario(p.usuario_id))}</td>`}
+      <td class="ocultar-movil tenue nw">${fmtFecha(p.fecha_prestamo)}</td>
+      <td class="nw" data-et="Devolver antes de">${fmtFecha(p.fecha_limite)}${activo ? `<span class="relativo ${pz.clase}">${pz.texto}</span>` : p.fecha_devolucion ? `<span class="relativo">devuelto el ${fmtFecha(p.fecha_devolucion)}</span>` : ""}</td>
+      <td data-et="Estado">${estadoPrestamo(p)}</td>${soloDevolver ? "" : `<td class="ocultar-movil">${p.renovaciones ? `${p.renovaciones} de ${MAX_RENOVACIONES}` : "No"}</td>`}
+      <td class="acc"><div class="acciones-fila nw" style="flex-wrap:nowrap">${acciones}</div></td></tr>`;
+  }).join("")}</tbody></table></div>`;
+}
+function enlazarAccionesPrestamo(cont, lista, despues) {
+  const buscar = (id) => lista.find((p) => p.id === id);
+  cont.querySelectorAll("[data-devolver]").forEach((b) => b.onclick = (e) => { e.stopPropagation(); devolver(buscar(b.dataset.devolver), b).then((ok) => ok && despues()); });
+  cont.querySelectorAll("[data-renovar]").forEach((b) => b.onclick = (e) => { e.stopPropagation(); renovar(buscar(b.dataset.renovar), b).then((ok) => ok && despues()); });
+  cont.querySelectorAll("tr[data-prestamo]").forEach((tr) => {
+    tr.onclick = (e) => { if (!e.target.closest("button")) verPrestamo(tr.dataset.prestamo); };
+    tr.onkeydown = (e) => { if (e.key === "Enter" && e.target === tr) verPrestamo(tr.dataset.prestamo); };
+  });
+}
+// GET /prestamos?estado= · GET /prestamos/vencidos
+async function cargarPrestamos(reiniciar = false) {
+  if (reiniciar) Object.assign(estadoPrestamos, { pila: [null], pagina: 0 });
+  document.querySelectorAll("#pestanas-prestamos .pestana").forEach((b) => { const on = b.dataset.estado === estadoPrestamos.estado; b.classList.toggle("activa", on); b.setAttribute("aria-selected", on); });
+  const cont = $("tabla-prestamos"), pag = $("pag-prestamos");
+  cont.innerHTML = cargando(); pag.innerHTML = "";
+  const cursor = estadoPrestamos.pila[estadoPrestamos.pagina];
+  const pq = `limite=20${cursor ? "&siguiente=" + enc(cursor) : ""}`;
+  const esVencidos = estadoPrestamos.estado === "vencidos";
+  try {
+    const d = await api("GET", esVencidos ? `/prestamos/vencidos?${pq}` : `/prestamos?estado=${estadoPrestamos.estado}&${pq}`);
+    estadoPrestamos.siguiente = d.siguiente || null;
+    estadoPrestamos.lista = d.prestamos || [];
+    estadoPrestamos.fuente = d._fuente;
+    pintarPrestamos();
+    if (d.siguiente || estadoPrestamos.pagina) {
+      pag.innerHTML = `<span>Página ${estadoPrestamos.pagina + 1}</span>
+        <button class="boton claro peq" id="pr-ant" ${estadoPrestamos.pagina ? "" : "disabled"}>${icono("izq")}Anterior</button>
+        <button class="boton claro peq" id="pr-sig" ${d.siguiente ? "" : "disabled"}>Siguiente${icono("der")}</button>`;
+      $("pr-ant").onclick = () => { estadoPrestamos.pagina--; cargarPrestamos(); };
+      $("pr-sig").onclick = () => { estadoPrestamos.pila[estadoPrestamos.pagina + 1] = estadoPrestamos.siguiente; estadoPrestamos.pagina++; cargarPrestamos(); };
+    }
+  } catch (e) { cont.innerHTML = `<div class="tarjeta">${errorBloque(e)}</div>`; }
+  recorrer("/prestamos/vencidos", "prestamos").then((r) => actualizarContadorVencidos(r.items.length)).catch(() => {});
+}
+function pintarPrestamos() {
+  const cont = $("tabla-prestamos"), q = normalizar($("filtro-prestamos").value), est = estadoPrestamos.estado;
+  const lista = estadoPrestamos.lista.filter((p) => !q || normalizar(`${p.titulo} ${nombreUsuario(p.usuario_id)}`).includes(q));
+  if (!estadoPrestamos.lista.length) {
+    cont.innerHTML = `<div class="tarjeta">${est === "vencidos" ? vacio("ok", "Ningún préstamo vencido", "Todos los libros prestados están dentro del plazo.")
+      : est === "activo" ? vacio("prestamo", "No hay libros prestados en este momento", "", `<button class="boton vino" onclick="asistentePrestamo()">${icono("prestamo")}Prestar un libro</button>`)
+      : vacio("devolver", "Aún no hay devoluciones", "Aquí aparecerá el historial de libros devueltos.")}</div>`;
+    return;
+  }
+  cont.innerHTML = lista.length ? tablaPrestamos(lista) + `<div style="margin-top:8px">${fuenteBadge(estadoPrestamos.fuente)}</div>` : `<div class="tarjeta">${vacio("buscar", "Ningún préstamo coincide con el filtro")}</div>`;
+  enlazarAccionesPrestamo(cont, lista, () => { refrescarDatos(); cargarPrestamos(); });
+}
+$("filtro-prestamos").oninput = pintarPrestamos;
+document.querySelectorAll("#pestanas-prestamos .pestana").forEach((b) => b.onclick = () => { estadoPrestamos.estado = b.dataset.estado; cargarPrestamos(true); });
+
+// Asistente «Prestar libro»: usuario → libro → confirmar (POST /prestamos)
+async function asistentePrestamo(inicial = {}) {
+  const st = { usuario: inicial.usuario || null, libro: inicial.libro || null, paso: 1 };
+  st.paso = !st.usuario ? 1 : !st.libro ? 2 : 3;
+  abrirModal("Prestar libro", cargando(), "", { ancho: true });
+  await refrescarDatos();
+  if (st.usuario) st.usuario = datos.usuarios.get(st.usuario.id) || st.usuario;
+  if (st.libro) st.libro = datos.libros.get(st.libro.id) || st.libro;
+  const pasos = () => `<ol class="pasos">${["Usuario", "Libro", "Confirmar"].map((t, i) => `<li class="${i + 1 === st.paso ? "actual" : i + 1 < st.paso ? "hecho" : ""}" ${i + 1 === st.paso ? 'aria-current="step"' : ""}><span class="num">${i + 1 < st.paso ? "✓" : i + 1}</span><span class="txt-paso">${t}</span></li>`).join("")}</ol>`;
+  function pintar() {
+    if (st.paso === 1) {
+      $("modal-cuerpo").innerHTML = pasos() + `<div class="campo" id="asis-usuario"></div>`;
+      crearSelector($("asis-usuario"), "usuario", { etiqueta: "¿Quién se lleva el libro?", ayuda: "Escriba el nombre o el correo y elija de la lista.", recordar: false,
+        bloquear: (u) => u.prestamos_activos >= u.max_prestamos ? `Ya tiene ${u.max_prestamos} libros` : null,
+        nota: (u) => `<span class="distintivo d-tinta">${u.prestamos_activos ?? 0} de ${u.max_prestamos ?? 3}</span>${u.saldo_multas ? ` <span class="distintivo d-mal" title="Tiene multas sin pagar">Multa</span>` : ""}`,
+        alElegir: (u) => { st.usuario = u; st.paso = 2; pintar(); } });
+      ponerPie(`<button class="boton claro" data-cerrar>Cancelar</button>`);
+    } else if (st.paso === 2) {
+      $("modal-cuerpo").innerHTML = pasos() + `<div class="elegido" style="margin-bottom:14px">${avatar(st.usuario)}<span class="txt"><b>${esc(st.usuario.nombre)}</b><small>${st.usuario.prestamos_activos ?? 0} de ${st.usuario.max_prestamos ?? 3} libros prestados</small></span></div>
+        ${st.usuario.saldo_multas ? `<div class="aviso" style="margin-bottom:12px">${icono("info")}<div>Este usuario tiene multas pendientes por ${fmtCOP(st.usuario.saldo_multas)}.</div></div>` : ""}<div class="campo" id="asis-libro"></div>`;
+      crearSelector($("asis-libro"), "libro", { etiqueta: "¿Qué libro se lleva?", ayuda: "Los libros agotados no se pueden prestar; se pueden reservar.", recordar: false,
+        bloquear: (l) => l.disponibles > 0 ? null : "Agotado: puede reservarlo",
+        alElegir: (l) => { st.libro = l; st.paso = 3; pintar(); } });
+      ponerPie(`<button class="boton claro" id="asis-atras">${icono("izq")}Atrás</button><span style="flex:1"></span><button class="boton claro" data-cerrar>Cancelar</button>`);
+      $("asis-atras").onclick = () => { st.paso = 1; pintar(); };
+    } else {
+      const vence = sumarDias(hoyUTC(), DIAS_PRESTAMO), l = st.libro;
+      $("modal-cuerpo").innerHTML = pasos() + `<div class="resumen">${portada(l)}<div style="flex:1">
+          <h3 style="font-size:1.3rem">${esc(l.titulo)}</h3><div class="autor" style="font-style:italic;color:var(--suave)">${esc(l.autor)}</div>
+          <dl class="datos" style="margin-top:14px"><dt>Para</dt><dd><b>${esc(st.usuario.nombre)}</b> · ${esc(st.usuario.email)}</dd>
+            <dt>Devolver antes de</dt><dd><span class="fecha-grande">${fmtFecha(vence, { larga: true })}</span><span class="relativo bien">en ${DIAS_PRESTAMO} días</span></dd></dl>
+          ${(l.reservas_pendientes || 0) > 0 ? `<div class="aviso" style="margin-top:12px">${icono("info")}<div>Este ejemplar está guardado para quien hizo fila. Solo se presta si <b>${esc(st.usuario.nombre)}</b> es quien sigue en la fila.</div></div>` : ""}
+          <div class="aviso info" style="margin-top:12px">${icono("info")}<div>Si lo necesita más tiempo, puede renovarlo hasta 2 veces. Si se devuelve tarde, se cobra ${fmtCOP(MULTA_POR_DIA)} por cada día de retraso.</div></div>
+        </div></div>`;
+      ponerPie(`<button class="boton claro" id="asis-atras">${icono("izq")}Cambiar libro</button><span style="flex:1"></span><button class="boton claro" data-cerrar>Cancelar</button><button class="boton vino" id="asis-ok">${icono("check")}Confirmar préstamo</button>`);
+      $("asis-atras").onclick = () => { st.paso = 2; pintar(); };
+      $("asis-ok").onclick = (e) => conCarga(e.currentTarget, async () => {
+        try {
+          const p = await api("POST", "/prestamos", { usuario_id: st.usuario.id, item_id: st.libro.id });
+          await refrescarDatos();
+          $("modal-cuerpo").innerHTML = `<div class="exito-grande">${icono("ok")}<h3>Préstamo registrado</h3>
+            <p><b>«${esc(p.titulo)}»</b> queda a nombre de <b>${esc(st.usuario.nombre)}</b>.</p>
+            <p class="fecha-grande">Debe devolverse antes del ${fmtFecha(p.fecha_limite, { larga: true })}</p><p>${codigo(p.id)}</p></div>`;
+          ponerPie(`<button class="boton claro" id="asis-otro">${icono("prestamo")}Prestar otro libro</button><button class="boton vino" data-cerrar>Listo</button>`);
+          $("asis-otro").onclick = () => asistentePrestamo({ usuario: datos.usuarios.get(st.usuario.id) });
+          if (vistaActual === "prestamos") cargarPrestamos(); else if (vistaActual === "panel") cargarPanel(); else if (vistaActual === "catalogo") cargarEstante();
+        } catch (err) { errorToast(err, "No se pudo registrar el préstamo"); }
+      });
+    }
+  }
+  pintar();
+}
+// PUT /prestamos/{id}/devolver
+async function devolver(p, boton) {
+  const pz = plazo(p.fecha_limite), atraso = Math.max(0, -pz.dias);
+  const texto = `Se registrará que <b>${esc(nombreUsuario(p.usuario_id))}</b> devolvió <b>«${esc(p.titulo)}»</b>.<br><br>` + (atraso
+    ? `<span style="color:var(--rojo)">Está atrasado ${plural(atraso, "día", "días")}: se generará una multa de <b>${fmtCOP(atraso * MULTA_POR_DIA)}</b> (${fmtCOP(MULTA_POR_DIA)} por día).</span>`
+    : "Está dentro del plazo: no se genera multa.");
+  if (!await confirmar("Registrar devolución", texto, "Sí, devolver", { peligro: atraso > 0 })) return false;
+  return conCarga(boton, async () => {
+    try {
+      const d = await api("PUT", `/prestamos/${enc(p.id)}/devolver`);
+      let msg = `«${esc(d.titulo)}» volvió a la biblioteca.`;
+      if (d.multa) msg += `<br><b style="color:var(--rojo)">Se generó una multa de ${fmtCOP(d.multa.monto)}</b> por ${plural(d.dias_retraso, "día", "días")} de retraso.`;
+      if (d.reservas_en_espera) msg += `<br>Hay ${plural(d.reservas_en_espera, "persona", "personas")} esperando este libro: guárdelo para la primera de la fila.`;
+      toast(d.multa ? "aviso" : "exito", "Devolución registrada", msg);
+      refrescarDatos();
+      return true;
+    } catch (e) { errorToast(e, "No se pudo registrar la devolución"); return false; }
+  });
+}
+// PUT /prestamos/{id}/renovar
+async function renovar(p, boton) {
+  const nueva = sumarDias(p.fecha_limite, DIAS_PRESTAMO), usadas = p.renovaciones || 0;
+  if (!await confirmar("Renovar préstamo", `Se ampliará el plazo de <b>«${esc(p.titulo)}»</b> ${DIAS_PRESTAMO} días más.<br><br>Nueva fecha de devolución: <b>${fmtFecha(nueva, { larga: true })}</b>.<br><span class="tenue" style="display:inline">${MAX_RENOVACIONES - usadas - 1 === 0 ? "Esta es la última renovación permitida." : `Después de esta le quedará${MAX_RENOVACIONES - usadas - 1 === 1 ? "" : "n"} ${plural(MAX_RENOVACIONES - usadas - 1, "renovación", "renovaciones")}.`}</span>`, "Renovar", { peligro: false })) return false;
+  return conCarga(boton, async () => {
+    try {
+      const d = await api("PUT", `/prestamos/${enc(p.id)}/renovar`);
+      toast("exito", "Préstamo renovado", `Ahora debe devolverse antes del <b>${fmtFecha(d.fecha_limite, { larga: true })}</b>.`);
+      return true;
+    } catch (e) { errorToast(e, "No se pudo renovar"); return false; }
+  });
+}
+// GET /prestamos/{id}
+async function verPrestamo(id) {
+  abrirModal("Préstamo", cargando(), "", { estrecho: true });
+  try {
+    const p = await api("GET", `/prestamos/${enc(id)}`);
+    const activo = p.estado === "ACTIVO", pz = plazo(p.fecha_limite), noRen = motivoNoRenovar(p);
+    $("modal-extra").innerHTML = fuenteBadge(p._fuente);
+    $("modal-cuerpo").innerHTML = `<div class="celda-libro" style="margin-bottom:14px">${miniPortada(datos.libros.get(p.item_id))}<div><b style="font-size:1.15rem">${esc(p.titulo)}</b><small>${esc(datos.libros.get(p.item_id)?.autor || "")}</small></div><span style="margin-left:auto">${estadoPrestamo(p)}</span></div>
+      ${activo && pz.dias < 0 ? `<div class="aviso" style="margin-bottom:14px;background:var(--rojo-bg);border-color:#efc3c9;color:var(--rojo)">${icono("alerta")}<div>Este libro está atrasado (${pz.texto}). Al devolverlo se cobrará ${fmtCOP(-pz.dias * MULTA_POR_DIA)}.</div></div>` : ""}
+      <dl class="datos"><dt>Usuario</dt><dd><a href="javascript:void 0" id="vp-usuario">${esc(nombreUsuario(p.usuario_id))}</a></dd>
+      <dt>Prestado</dt><dd>${fmtFecha(p.fecha_prestamo, { hora: true })}</dd>
+      <dt>Devolver antes de</dt><dd>${fmtFecha(p.fecha_limite, { larga: true })}${activo ? `<span class="relativo ${pz.clase}">${pz.texto}</span>` : ""}</dd>
+      ${p.fecha_devolucion ? `<dt>Devuelto</dt><dd>${fmtFecha(p.fecha_devolucion, { hora: true })}</dd>` : ""}
+      <dt>Renovaciones</dt><dd>${p.renovaciones || 0} de ${MAX_RENOVACIONES}</dd><dt class="solo-tecnico">Código</dt><dd class="solo-tecnico mono">${esc(p.id)}</dd></dl>`;
+    $("vp-usuario").onclick = () => verUsuario(p.usuario_id);
+    if (activo) {
+      ponerPie(`<button class="boton claro" id="vp-renovar" ${noRen ? `disabled title="${esc(noRen)}"` : ""}>${icono("renovar")}Renovar</button><button class="boton vino" id="vp-devolver">${icono("devolver")}Devolver</button>`);
+      const recargar = () => { verPrestamo(id); if (vistaActual === "prestamos") cargarPrestamos(); else if (vistaActual === "panel") cargarPanel(); };
+      $("vp-renovar").onclick = (e) => renovar(p, e.currentTarget).then((ok) => ok && recargar());
+      $("vp-devolver").onclick = (e) => devolver(p, e.currentTarget).then((ok) => ok && recargar());
+      if (noRen) $("modal-cuerpo").insertAdjacentHTML("beforeend", `<p class="tenue" style="display:block;margin-top:12px">No se puede renovar: ${esc(noRen.toLowerCase())}.</p>`);
+    }
+  } catch (e) { $("modal-cuerpo").innerHTML = errorBloque(e); }
+}
+
+// ── RESERVAS ───────────────────────────────────────────────────────
+// El API no lista todas las reservas. El tablero sale del catálogo (reservas_pendientes).
+// Los nombres se recuerdan si la reserva se creó en este navegador.
+const reservasLocales = () => { try { return JSON.parse(localStorage.getItem(CLAVE_RESERVAS) || "[]"); } catch { return []; } };
+const guardarReservas = (l) => localStorage.setItem(CLAVE_RESERVAS, JSON.stringify(l));
+const estadoReservas = { libro: null };
+let selRUsuario = null, selRLibro = null, selFila = null;
+function resumenNombresFila(l) {
+  const espera = l.reservas_pendientes || 0;
+  const conocidas = reservasConocidas(l.id);
+  if (!espera) return "Nadie está en la fila.";
+  if (!conocidas.length) return "Los nombres no están en este equipo: la reserva se hizo en otro navegador.";
+  const nombres = conocidas.map((r) => esc(nombreUsuario(r.usuario_id))).join(", ");
+  const faltan = espera - conocidas.length;
+  return faltan > 0 ? `En este equipo: ${nombres}. ${faltan === 1 ? "Falta 1 persona" : `Faltan ${fmtNum(faltan)} personas`} de otro equipo.` : `En la fila: ${nombres}.`;
+}
+async function cargarReservas() {
+  await refrescarDatos();
+  if (!selRUsuario) {
+    selRUsuario = crearSelector($("sel-r-usuario"), "usuario", { etiqueta: "¿Quién reserva?", obligatorio: true, ayuda: "Escriba el nombre o el correo." });
+    selRLibro = crearSelector($("sel-r-libro"), "libro", { etiqueta: "¿Qué libro?", obligatorio: true, ayuda: "Solo se pueden reservar libros agotados.",
+      bloquear: (l) => l.disponibles > 0 && !l.reservas_pendientes ? "Disponible: préstelo directamente" : null });
+    selFila = crearSelector($("sel-fila-libro"), "libro", { etiqueta: "Elija un libro", placeholder: "Escriba el título…", alElegir: (l) => verFila(l.id), alLimpiar: () => ($("fila-resultado").innerHTML = "") });
+  } else { selRUsuario.refrescar(); selRLibro.refrescar(); }
+  pintarTableroFilas();
+  if (estadoReservas.libro) {
+    const id = estadoReservas.libro;
+    estadoReservas.libro = null;
+    const l = datos.libros.get(id);
+    if (l) { selFila.poner(l); verFila(id); return; }
+  }
+  if (selFila.valor()) verFila(selFila.valor().id);
+}
+// POST /reservas
+async function crearReserva(usuario_id, item_id, boton) {
+  return conCarga(boton, async () => {
+    try {
+      const r = await api("POST", "/reservas", { usuario_id, item_id });
+      guardarReservas([...reservasLocales().filter((x) => x.id !== r.id), r]);
+      toast("exito", "Reserva registrada", `<b>${esc(nombreUsuario(r.usuario_id))}</b> quedó ${r.posicion === 1 ? "<b>de primera</b>" : `en el puesto <b>${r.posicion ?? "?"}</b>`} de la fila de «${esc(r.titulo)}».`);
+      await refrescarDatos();
+      if (vistaActual === "reservas") { pintarTableroFilas(); selFila.poner(datos.libros.get(r.item_id)); verFila(r.item_id); }
+      if (vistaActual === "panel") cargarPanel();
+      return true;
+    } catch (e) { errorToast(e, "No se pudo reservar"); return false; }
+  });
+}
+$("form-reserva").onsubmit = async (e) => {
+  e.preventDefault();
+  const u = selRUsuario.valor(), l = selRLibro.valor();
+  if (!u || !l) return toast("aviso", "Faltan datos", !u ? "Elija quién hace la reserva." : "Elija el libro que quiere reservar.");
+  if (await crearReserva(u.id, l.id, e.target.querySelector("button[type=submit]"))) { selRUsuario.limpiar(); selRLibro.limpiar(); }
+};
+// DELETE /reservas/{id}
+async function cancelarReserva(id, boton) {
+  const r = reservasLocales().find((x) => x.id === id);
+  const texto = r ? `¿Cancelar la reserva de <b>${esc(nombreUsuario(r.usuario_id))}</b> para <b>«${esc(r.titulo)}»</b>? Saldrá de la fila de espera.` : "¿Cancelar esta reserva? La persona saldrá de la fila de espera.";
+  if (!await confirmar("Cancelar reserva", texto, "Cancelar reserva")) return;
+  await conCarga(boton, async () => {
+    try {
+      await api("DELETE", `/reservas/${enc(id)}`);
+      guardarReservas(reservasLocales().filter((x) => x.id !== id));
+      toast("exito", "Reserva cancelada", r ? `${esc(nombreUsuario(r.usuario_id))} salió de la fila de «${esc(r.titulo)}».` : "");
+      await refrescarDatos();
+      pintarTableroFilas(); if (r && selFila?.valor()?.id === r.item_id) verFila(r.item_id);
+      if (vistaActual === "panel") cargarPanel();
+    } catch (e) {
+      if (e.status === 404) { guardarReservas(reservasLocales().filter((x) => x.id !== id)); pintarTableroFilas(); }
+      errorToast(e, "No se pudo cancelar");
+    }
+  });
+}
+function filaReserva(r, turno) {
+  const u = datos.usuarios.get(r.usuario_id) || { id: r.usuario_id, nombre: r.usuario_id };
+  return `<div class="fila-cola">${turno ? `<span class="turno" title="Puesto en la fila">${turno}</span>` : avatar(u)}
+    <div style="flex:1;min-width:0"><b>${esc(u.nombre)}</b> <span class="tenue" style="display:inline">· «${esc(r.titulo)}»</span>
+      <span class="tenue">Reservó ${haceCuanto(r.fecha_reserva)}${!turno && r.posicion ? ` · entró en el puesto ${r.posicion}` : ""} ${codigo(r.id)}</span></div>
+    <button class="boton peligro peq" data-cancelar="${esc(r.id)}" title="Sacar a ${esc(u.nombre)} de la fila">${icono("cerrar")}<span class="ocultar-movil">Cancelar</span></button></div>`;
+}
+const enlazarCancelar = (cont) => cont.querySelectorAll("[data-cancelar]").forEach((b) => b.onclick = () => cancelarReserva(b.dataset.cancelar, b));
+function pintarTableroFilas() {
+  const filas = librosConFila(), cont = $("tablero-filas");
+  if (!cont) return;
+  cont.innerHTML = filas.length ? `<div class="tablero-filas">${filas.map((l) => `<button type="button" class="fila-libro" data-id="${esc(l.id)}">${miniPortada(l)}
+      <span class="txt"><b>${esc(l.titulo)}</b><span class="tenue">${esc(l.autor || "")}</span><span class="tenue">${resumenNombresFila(l)}</span></span>
+      ${estadoLibro(l, true)}</button>`).join("")}</div>`
+    : vacio("reserva", "Nadie está esperando un libro", "Cuando un título se agote, reserve desde el formulario de arriba o desde la ficha del libro.");
+  cont.querySelectorAll(".fila-libro").forEach((b) => b.onclick = () => {
+    const l = datos.libros.get(b.dataset.id);
+    if (l && selFila) { selFila.poner(l); verFila(l.id); $("fila-resultado")?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }
+  });
+}
+// Fila de un libro: GET /items/{id} dice cuántos esperan; los nombres son los de las reservas conocidas.
+async function verFila(itemId) {
+  const cont = $("fila-resultado"); cont.innerHTML = cargando();
+  try {
+    const l = await api("GET", `/items/${enc(itemId)}`);
+    datos.libros.set(l.id, { ...(datos.libros.get(l.id) || {}), ...l });
+    actualizarContadorReservas();
+    const espera = l.reservas_pendientes || 0;
+    const conocidas = reservasConocidas(l.id).slice(0, espera || undefined);
+    const completas = conocidas.length === espera && espera > 0;
+    const desconocidas = Math.max(0, espera - conocidas.length);
+    const huecos = Array.from({ length: desconocidas }, () => `<div class="fila-cola fantasma"><span class="turno" title="Puesto desconocido en este equipo">?</span><div style="flex:1"><b>Reserva desde otro equipo</b><span class="tenue">El nombre no está en este navegador</span></div></div>`).join("");
+    cont.innerHTML = `<div style="margin:6px 0 12px">${estadoLibro(l)} ${fuenteBadge(l._fuente)}</div>
+      ${!espera ? vacio("ok", "Nadie está esperando este libro", l.disponibles > 0 ? "Hay ejemplares disponibles: se puede prestar directamente." : "Está agotado: puede ser el primero en reservarlo.")
+        : `<p style="margin:0 0 10px">${espera === 1 ? "Hay <b>1 persona</b> esperando" : `Hay <b>${espera} personas</b> esperando`} este libro.${l.disponibles > 0 ? " Ya hay un ejemplar guardado para la primera." : ""}</p>
+        ${conocidas.map((r, i) => filaReserva(r, completas ? i + 1 : 0)).join("")}
+        ${huecos}
+        ${desconocidas ? `<div class="aviso info">${icono("info")}<div>El orden completo solo se muestra cuando todas las reservas se hicieron en este equipo.<span class="solo-tecnico mono" style="display:block">LRANGE cola:item#${esc(l.id)} 0 -1</span></div></div>` : ""}`}`;
+    enlazarCancelar(cont);
+  } catch (e) { cont.innerHTML = errorBloque(e); }
+}
+
+// ── MULTAS ─────────────────────────────────────────────────────────
+let selMultaUsuario = null, selVerMultas = null;
+function cargarMultas() {
+  if (!selMultaUsuario) {
+    selMultaUsuario = crearSelector($("sel-m-usuario"), "usuario", { etiqueta: "Usuario", obligatorio: true, ayuda: "A quién se le cobra la multa",
+      alElegir: (u) => cargarPrestamosParaMulta(u.id), alLimpiar: () => { $("m-prestamo").innerHTML = '<option value="">Primero elija el usuario</option>'; $("m-prestamo").disabled = true; } });
+    selVerMultas = crearSelector($("sel-vm-usuario"), "usuario", { etiqueta: "Usuario", alElegir: (u) => verMultas(u.id), alLimpiar: () => ($("multas-resultado").innerHTML = "") });
+  }
+  const deudores = [...datos.usuarios.values()].filter((u) => u.saldo_multas > 0).sort((a, b) => b.saldo_multas - a.saldo_multas);
+  $("con-multas").innerHTML = deudores.length ? deudores.map((u) => `<div class="fila-cola">${avatar(u)}<div style="flex:1"><b>${esc(u.nombre)}</b><span class="tenue">${esc(u.email)}</span></div>
+      <span class="distintivo d-mal">Debe ${fmtCOP(u.saldo_multas)}</span><button class="boton claro peq" data-ver="${esc(u.id)}">Ver detalle</button></div>`).join("")
+    : vacio("ok", "Nadie tiene multas pendientes", "Todos los usuarios están al día.");
+  $("con-multas").querySelectorAll("[data-ver]").forEach((b) => b.onclick = () => { selVerMultas.poner(datos.usuarios.get(b.dataset.ver)); verMultas(b.dataset.ver); $("sel-vm-usuario").scrollIntoView({ behavior: "smooth", block: "center" }); });
+}
+async function cargarPrestamosParaMulta(uid) {
+  const sel = $("m-prestamo");
+  sel.disabled = true; sel.innerHTML = '<option value="">Cargando préstamos…</option>';
+  try {
+    const d = await api("GET", `/usuarios/${enc(uid)}/prestamos`);
+    sel.innerHTML = '<option value="">No, es por otro motivo</option>' + (d.prestamos || []).map((p) => `<option value="${esc(p.id)}">«${esc(p.titulo)}» — prestado el ${fmtFecha(p.fecha_prestamo)}${p.estado === "DEVUELTO" ? " (devuelto)" : ""}</option>`).join("");
+    sel.disabled = false;
+  } catch { sel.innerHTML = '<option value="">No se pudieron cargar los préstamos</option>'; }
+}
+function tablaMultas(d) {
+  const lista = d.multas || [];
+  const cab = `<div class="kv" style="grid-template-columns:1fr 1fr"><div><b style="color:${d.saldo_pendiente ? "var(--rojo)" : "var(--verde)"}">${d.saldo_pendiente ? fmtCOP(d.saldo_pendiente) : "Al día"}</b><span>Por pagar</span></div><div><b>${d.total}</b><span>Multas en total</span></div></div>`;
+  if (!lista.length) return cab + vacio("ok", "No tiene multas", "Este usuario está a paz y salvo.");
+  return cab + `<div class="tabla-env"><table><thead><tr><th>Fecha</th><th>Motivo</th><th>Valor</th><th>Estado</th></tr></thead><tbody>
+    ${lista.map((m) => `<tr><td class="tenue nw">${fmtFecha(m.fecha)}</td><td>${esc(m.motivo)}<div style="margin-top:3px"><span class="distintivo ${m.origen === "MANUAL" ? "d-tinta" : "d-aviso"}">${m.origen === "MANUAL" ? "Otro motivo" : "Por retraso"}</span></div></td>
+      <td class="nw"><b>${fmtCOP(m.monto)}</b></td>
+      <td><span class="distintivo ${m.estado === "PENDIENTE" ? "d-mal" : "d-ok"}">${m.estado === "PENDIENTE" ? "Pendiente" : esc(m.estado)}</span></td></tr>`).join("")}</tbody></table></div>
+    <div style="margin-top:8px">${fuenteBadge(d._fuente)}</div>`;
+}
+// POST /multas
+$("form-multa").onsubmit = async (e) => {
+  e.preventDefault();
+  const u = selMultaUsuario.valor();
+  if (!u) return toast("aviso", "Falta el usuario", "Elija a quién se le registra la multa.");
+  const cuerpo = { usuario_id: u.id, monto: parseInt($("m-monto").value, 10), motivo: $("m-motivo").value.trim() };
+  if ($("m-prestamo").value) cuerpo.prestamo_id = $("m-prestamo").value;
+  await conCarga(e.target.querySelector("button[type=submit]"), async () => {
+    try {
+      const m = await api("POST", "/multas", cuerpo);
+      toast("exito", "Multa registrada", `${fmtCOP(m.monto)} a <b>${esc(u.nombre)}</b> por «${esc(m.motivo)}».`);
+      $("m-monto").value = ""; $("m-motivo").value = "";
+      await refrescarDatos();
+      selVerMultas.poner(datos.usuarios.get(u.id)); verMultas(u.id); cargarMultas();
+    } catch (err) { errorToast(err, "No se pudo registrar la multa"); }
+  });
+};
+// GET /usuarios/{id}/multas
+async function verMultas(uid) {
+  const cont = $("multas-resultado"); cont.innerHTML = cargando();
+  try { cont.innerHTML = `<div style="margin-top:14px">${tablaMultas(await api("GET", `/usuarios/${enc(uid)}/multas`))}</div>`; }
+  catch (e) { cont.innerHTML = errorBloque(e); }
+}
+
+// ── SISTEMA (conexión, servicios y caché) ──────────────────────────
+// GET /health · GET /cache/stats · GET /items/populares
+async function cargarSistema() {
+  const cont = $("sistema-contenido");
+  cont.innerHTML = cargando("Revisando el sistema…");
+  const [salud, stats] = await Promise.allSettled([conexion.base ? probarConexion(conexion.base) : Promise.resolve(null), api("GET", "/cache/stats")]);
+  const h = salud.status === "fulfilled" ? salud.value : null;
+  if (h) pintarEstadoConexion(h);
+  const servicio = (nombre, explica, c) => `<div class="fila-cola"><span class="avatar" style="background:${c?.estado === "ok" ? "var(--verde)" : "var(--rojo)"}">${icono(nombre.includes("Base") ? "servidor" : "cache", 'style="width:16px;height:16px"')}</span>
+    <div style="flex:1"><b>${nombre}</b><span class="tenue">${explica}</span></div><span class="distintivo ${c?.estado === "ok" ? "d-ok" : "d-mal"}">${c?.estado === "ok" ? "Funciona" : "Con fallas"}</span></div>`;
+  let cache;
+  if (stats.status === "fulfilled") {
+    const s = stats.value, pct = s.hit_ratio == null ? null : Math.round(s.hit_ratio * 1000) / 10, tipos = s.claves_por_tipo || {}, maxT = Math.max(1, ...Object.values(tipos));
+    const nombres = { item: "Fichas de libros", usuario: "Fichas, préstamos y multas de usuarios", busqueda: "Búsquedas recientes", cola: "Filas de reserva" };
+    cache = `<div class="rejilla g2" style="align-items:center"><div>
+        <div class="anillo" style="background:conic-gradient(var(--verde) ${(pct ?? 0) * 3.6}deg,#ece5d6 0)"><div><b>${pct == null ? "—" : pct + "%"}</b><small>${pct == null ? "sin consultas aún" : "desde memoria"}</small></div></div>
+        <div class="leyenda" style="margin-top:12px"><span><b style="color:var(--verde)">${fmtNum(s.hits)}</b> rápidas</span><span><b style="color:var(--ambar)">${fmtNum(s.misses)}</b> a la base de datos</span></div></div>
+      <div>${Object.entries(tipos).map(([k, n]) => `<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;font-size:.88rem"><span>${esc(nombres[k] || k)} <span class="mono tenue solo-tecnico">${esc(k)}</span></span><b>${fmtNum(n)}</b></div>
+        <div class="barra-progreso" style="margin-top:5px"><span style="width:${(n / maxT) * 100}%;background:linear-gradient(90deg,var(--tinta),var(--tinta-3))"></span></div></div>`).join("")}
+        <p class="tenue" style="display:block">Las copias guardadas en memoria se renuevan cada ${Math.round((s.ttl_segundos || 300) / 60)} minutos, o antes si el dato cambia.</p></div></div>
+      <div class="solo-tecnico" style="margin-top:12px"><dl class="datos"><dt>hits / misses</dt><dd class="mono">${s.hits} / ${s.misses} (Hash stats:cache)</dd><dt>claves totales</dt><dd class="mono">${s.claves_totales}</dd><dt>TTL</dt><dd class="mono">${s.ttl_segundos} s</dd></dl></div>`;
+  } else cache = stats.reason.status === 503 ? vacio("cache", "La memoria rápida no responde", "La biblioteca sigue funcionando: los datos se leen directamente de la base de datos.") : errorBloque(stats.reason);
+  cont.innerHTML = `<div class="rejilla g2" style="align-items:start">
+    <div class="tarjeta"><h3>${icono("engranaje")}Conexión</h3>
+      <dl class="datos"><dt>Estado</dt><dd>${h ? `<span class="distintivo ${h.estado === "ok" ? "d-ok" : "d-aviso"}">${h.estado === "ok" ? "Conectado" : "Conectado con fallas"}</span>` : '<span class="distintivo d-mal">Sin conexión</span>'}</dd>
+      <dt>Servidor</dt><dd class="mono" style="font-size:.78rem">${esc(conexion.base || "Sin configurar")}</dd></dl>
+      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap"><button class="boton" onclick="abrirConfig()">${icono("engranaje")}Cambiar configuración</button></div>
+      <label class="interruptor" for="sis-tecnico" style="margin-top:18px"><input type="checkbox" id="sis-tecnico" ${tecnico() ? "checked" : ""}><span class="riel"></span>
+        <span><b>Modo técnico</b><span class="tenue">Muestra en toda la aplicación códigos internos y si cada dato salió de Redis o de DynamoDB.</span></span></label></div>
+    <div class="tarjeta"><h3>${icono("servidor")}Servicios</h3>${h ? servicio("Base de datos (DynamoDB)", "Guarda libros, usuarios, préstamos, reservas y multas", h.dynamodb) + servicio("Memoria rápida (Redis)", "Acelera las consultas frecuentes y guarda las filas de reserva", h.redis) : errorBloque(new ErrorApi(0, ""))}</div>
+  </div>
+  <div class="tarjeta" style="margin-top:18px"><h3>${icono("cache")}Rendimiento de las consultas</h3>
+    <p class="tenue" style="display:block;margin-top:-6px">Las consultas frecuentes se guardan un rato en memoria para responder más rápido sin ir a la base de datos.</p>${cache}</div>
+  <div class="rejilla g2 solo-tecnico" style="margin-top:18px">
+    <div class="tarjeta"><h3>${icono("info")}Patrones de caché</h3><dl class="datos">
+      <dt>Cache-Aside</dt><dd>GET de libros, usuarios, préstamos y multas por usuario, búsquedas y categorías: Redis primero; si no está, DynamoDB y se guarda con TTL.</dd>
+      <dt>Write-Through</dt><dd>POST/PUT de libros y usuarios escriben en DynamoDB y actualizan Redis en la misma petición.</dd>
+      <dt>Invalidación</dt><dd>Préstamos, devoluciones, reservas, multas y borrados eliminan las claves afectadas.</dd>
+      <dt>Rankings</dt><dd>Sorted Sets <span class="mono">ranking:items:consultas</span> y <span class="mono">ranking:items:prestamos</span>.</dd>
+      <dt>Filas</dt><dd>List <span class="mono">cola:item#&lt;id&gt;</span> (RPUSH / LREM) con copia en DynamoDB (GSI3).</dd></dl></div>
+    <div class="tarjeta"><h3>${icono("reserva")}Herramientas técnicas</h3>
+      <div class="campo"><label for="sis-reserva">Cancelar una reserva por su código</label><div style="display:flex;gap:8px"><input id="sis-reserva" class="mono" placeholder="Ej. 3f9a1c2b7d4e"><button class="boton peligro" id="sis-cancelar">Cancelar</button></div>
+      <small>Para reservas hechas desde otro equipo (el código lo devuelve POST /reservas).</small></div></div>
+  </div>`;
+  $("sis-tecnico").onchange = (e) => { ponerModoTecnico(e.target.checked); cargarSistema(); };
+  $("sis-cancelar").onclick = (e) => { const id = $("sis-reserva").value.trim(); if (id) cancelarReserva(id, e.currentTarget); };
+}
+
+// ── Arranque ───────────────────────────────────────────────────────
+(async function iniciar() {
+  ponerModoTecnico(localStorage.getItem(CLAVE_TECNICO) === "1");
+  if (!location.hash) history.replaceState(null, "", location.pathname + location.search + "#panel");
+  $("punto-api").className = "punto"; $("texto-api").textContent = "Conectando…";
+  let ok = conexion.base ? await conectar(conexion.base, { aviso: false }) : false;
+  if (!ok) {
+    const url = await detectarApi();                 // el id del API cambia en cada despliegue
+    if (url && url !== conexion.base) {
+      ok = await conectar(url, { aviso: false });
+      if (ok) toast("exito", "Conectado automáticamente", "Encontramos la biblioteca en el emulador local.");
+    }
+  }
+  if (!ok) pintarEstadoConexion(null);
+  mostrarVista();
+  if (!localStorage.getItem(CLAVE_BIENVENIDA)) {
+    bienvenida();
+    if (!ok) { const previo = modal.alCerrar; modal.alCerrar = () => { previo && previo(); setTimeout(abrirConfig, 50); }; }
+  } else if (!ok) abrirConfig();
+})();
+</script>
+</body>
+</html>
