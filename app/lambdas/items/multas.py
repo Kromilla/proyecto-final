@@ -27,14 +27,14 @@ from botocore.exceptions import ClientError
 
 MONTO_MINIMO: int = 1_000
 MONTO_MAXIMO: int = 500_000
-MONTO_MULTIPLO: int = 100
+MONTO_MULTIPLO: int = 1_000
 MENSAJE_MONTO: str = (
-    "El campo 'monto' debe ser un entero entre 1000 y 500000, en múltiplos de 100"
+    "El campo 'monto' debe ser un entero entre 1000 y 500000, en múltiplos de 1000"
 )
 
 
 def validar_monto_manual(valor: Any) -> int:
-    """Valida el monto de una multa manual: $1.000–$500.000, múltiplos de $100."""
+    """Valida el monto de una multa manual: $1.000–$500.000, múltiplos de $1.000."""
     if isinstance(valor, bool) or not isinstance(valor, int):
         raise ErrorApi(400, MENSAJE_MONTO)
     if not MONTO_MINIMO <= valor <= MONTO_MAXIMO or valor % MONTO_MULTIPLO != 0:

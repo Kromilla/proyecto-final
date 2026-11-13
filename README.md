@@ -270,7 +270,7 @@ Campos:
   libres; cuando se devuelve un ejemplar, solo los primeros de la fila pueden
   llevárselo y el préstamo consume su reserva.
 - **Multa**: `usuario_id`, `monto` (entero entre 1000 y 500000 pesos, en
-  múltiplos de 100) y `motivo` (obligatorios), `prestamo_id` (opcional, debe
+  múltiplos de 1000) y `motivo` (obligatorios), `prestamo_id` (opcional, debe
   ser un préstamo de ese usuario). Si el monto no cumple esa regla,
   `POST /multas` responde `400`. Solo se admite una multa manual si el
   usuario ha tenido al menos un préstamo (activo, vencido o devuelto); si
@@ -458,7 +458,7 @@ evento de API Gateway y el fixture `viajar_en_el_tiempo` que cambia la fecha
 | `test_usuarios.py` | `POST`, `GET`, `PUT`, `DELETE /usuarios…`, `GET /usuarios` (GSI2, paginación) y `GET /usuarios/{id}/prestamos` |
 | `test_prestamos.py` | `POST /prestamos` (transacción, sin ejemplares, máximo, multas pendientes, 404), `GET /prestamos?estado=`, `GET /prestamos/vencidos`, `GET /prestamos/{id}`, `PUT …/devolver`, `PUT …/renovar` (+14 días, máximo 2, vencido, con reservas) |
 | `test_reservas.py` | `POST /reservas` (List en orden, posición, reconstrucción de la cola), `GET /items/{id}/reservas` (nombres, posiciones, orden Redis o GSI3 si Redis cae), `DELETE /reservas/{id}` (`LREM`), solo el primero de la fila puede prestar, Redis caído |
-| `test_multas.py` | `POST /multas` (requiere historial de préstamos, 409 si no hay; monto entre 1000 y 500000, múltiplos de 100), `GET /usuarios/{id}/multas` (Cache-Aside, saldo), multa automática por devolución tardía |
+| `test_multas.py` | `POST /multas` (requiere historial de préstamos, 409 si no hay; monto entre 1000 y 500000, múltiplos de 1000), `GET /usuarios/{id}/multas` (Cache-Aside, saldo), multa automática por devolución tardía |
 | `test_cache.py` | `cache.py` (get/set/delete, TTL 300 por defecto, rankings, stats, Redis caído) y `GET /cache/stats` |
 
 ---

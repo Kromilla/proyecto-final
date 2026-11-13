@@ -126,7 +126,7 @@ Decisiones:
 | Máximo 3 préstamos activos por usuario | Condición `prestamos_activos < :max` |
 | No prestar si el usuario tiene multas pendientes (`saldo_multas > 0`) | Condición `saldo_multas <= :cero` en la transacción de `POST /prestamos` (409) |
 | Una multa manual solo se registra si el usuario ha tenido al menos un préstamo | Lectura del historial `LOAN#` y `ConditionCheck` del préstamo en `POST /multas` (409) |
-| Monto de una multa manual: entre $1.000 y $500.000, en múltiplos de $100 | Validación de `POST /multas` (400) |
+| Monto de una multa manual: entre $1.000 y $500.000, en múltiplos de $1.000 | Validación de `POST /multas` (400) |
 | Plazo de 14 días (`DIAS_PRESTAMO`) | `fecha_limite` al prestar |
 | Solo se reserva un libro **sin ejemplares libres** | Condición `disponibles = 0 OR reservas_pendientes > 0` |
 | Si hay fila, el libro solo se presta a los **N primeros** de la fila (N = ejemplares disponibles); el préstamo **consume** la reserva | `prestamos.crear` lee la fila y agrega a la transacción el `Delete` de la reserva y `reservas_pendientes - 1` |

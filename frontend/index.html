@@ -585,7 +585,7 @@ body.modo-tecnico span.mono.solo-tecnico{display:inline!important}
             <form id="form-multa">
               <div class="campo" id="sel-m-usuario"></div>
               <div class="fila-campos">
-                <div class="campo"><label for="m-monto">Valor en pesos <span class="req">*</span></label><input id="m-monto" type="text" inputmode="numeric" autocomplete="off" required placeholder="Ej. 15.000" aria-describedby="m-monto-ayuda m-monto-error"><small id="m-monto-ayuda">Mínimo $1.000, máximo $500.000, en múltiplos de $100. Puede escribir 15000 o 15.000.</small><p class="error-campo" id="m-monto-error" hidden></p></div>
+                <div class="campo"><label for="m-monto">Valor en pesos <span class="req">*</span></label><input id="m-monto" type="text" inputmode="numeric" autocomplete="off" required placeholder="Ej. 15.000" aria-describedby="m-monto-ayuda m-monto-error"><small id="m-monto-ayuda">Mínimo $1.000, máximo $500.000, en múltiplos de $1.000 (igual que la multa por día de retraso). Puede escribir 15000 o 15.000.</small><p class="error-campo" id="m-monto-error" hidden></p></div>
                 <div class="campo"><label for="m-motivo">Motivo <span class="req">*</span></label><input id="m-motivo" required list="motivos" placeholder="Ej. Libro dañado"><small>Explique brevemente la razón</small></div>
               </div>
               <datalist id="motivos"><option value="Libro dañado"><option value="Libro perdido"><option value="Páginas rayadas o arrancadas"><option value="Pérdida del carné"></datalist>
@@ -806,7 +806,7 @@ function traducir(e) {
     [/El préstamo no pertenece a ese usuario/, () => "Ese préstamo es de otro usuario."],
     [/Falta el campo obligatorio '(\w+)'/, (x) => `Falta completar ${CAMPOS[x[1]] || x[1]}.`],
     [/El campo '(\w+)' debe ser un entero entre (\d+) y (\d+)/, (x) => `El valor de ${CAMPOS[x[1]] || x[1]} debe estar entre ${fmtNum(+x[2])} y ${fmtNum(+x[3])}.`],
-    [/monto' debe ser un entero entre 1000 y 500000, en múltiplos de 100/, () => "El valor debe estar entre $1.000 y $500.000, en múltiplos de $100."],
+    [/monto' debe ser un entero entre 1000 y 500000, en múltiplos de 1000/, () => "El valor debe estar entre $1.000 y $500.000, en múltiplos de $1.000."],
     [/'q' debe tener/, () => "Escriba al menos 2 letras para buscar."],
     [/El campo '(\w+)' solo admite/, () => "El código solo puede tener letras sin tildes, números, guiones y guiones bajos."],
     [/Redis no responde/, () => "La memoria rápida del sistema no responde. Los datos se siguen mostrando desde la base de datos."],
@@ -1018,7 +1018,7 @@ const VISTAS = {
     ayuda: ["Solo se reservan libros <b>agotados</b>. Si hay ejemplares, préstelo directamente.", "El tablero y la fila de cada libro muestran a <b>todas</b> las personas en orden, con su nombre, aunque la reserva se haya hecho en otro equipo.",
       "Cuando se devuelve un ejemplar, queda guardado para la primera persona de la fila. Al prestárselo, su reserva se cierra sola."], cargar: () => cargarReservas() },
   multas: { titulo: "Multas", sub: "Cobros por retrasos, daños o pérdidas", icono: "multa", resumen: "Ver y registrar multas por retraso, daño o pérdida.",
-    ayuda: [`Las multas por retraso se crean solas al registrar la devolución: ${fmtCOP(MULTA_POR_DIA)} por día.`, "Use el formulario para multas por otros motivos (daños, pérdidas). El valor va de $1.000 a $500.000, en múltiplos de $100. Solo se puede registrar una multa manual si el usuario ha tenido al menos un préstamo.",
+    ayuda: [`Las multas por retraso se crean solas al registrar la devolución: ${fmtCOP(MULTA_POR_DIA)} por día.`, "Use el formulario para multas por otros motivos (daños, pérdidas). El valor va de $1.000 a $500.000, en múltiplos de $1.000. Solo se puede registrar una multa manual si el usuario ha tenido al menos un préstamo.",
       "Consulte a un usuario para ver el detalle y su saldo pendiente."], cargar: () => cargarMultas() },
   sistema: { titulo: "Sistema", sub: "Conexión, estado del servidor y rendimiento", icono: "servidor", resumen: "Conexión con el servidor, estado de los servicios y datos técnicos.",
     acciones: () => `<button class="boton claro" onclick="cargarSistema()">${icono("recargar")}<span>Actualizar</span></button>`,
@@ -1965,7 +1965,7 @@ function tablaMultas(d) {
       <td><span class="distintivo ${m.estado === "PENDIENTE" ? "d-mal" : "d-ok"}">${m.estado === "PENDIENTE" ? "Pendiente" : esc(m.estado)}</span></td></tr>`).join("")}</tbody></table></div>
     <div style="margin-top:8px">${fuenteBadge(d._fuente)}</div>`;
 }
-const MONTO_MULTA_MIN = 1000, MONTO_MULTA_MAX = 500000, MONTO_MULTA_PASO = 100;
+const MONTO_MULTA_MIN = 1000, MONTO_MULTA_MAX = 500000, MONTO_MULTA_PASO = 1000;
 function digitosMonto(texto) { return String(texto || "").replace(/\D/g, ""); }
 function formatearMonto(texto) {
   const d = digitosMonto(texto);
@@ -1979,7 +1979,7 @@ function mensajeMonto(valor) {
   if (!Number.isInteger(valor)) return "Escriba un valor en pesos, por ejemplo 15.000.";
   if (valor < MONTO_MULTA_MIN) return "El valor mínimo es $1.000.";
   if (valor > MONTO_MULTA_MAX) return "El valor máximo es $500.000.";
-  if (valor % MONTO_MULTA_PASO !== 0) return "El valor debe ser un múltiplo de $100. Por ejemplo $1.000, $1.500 o $15.000.";
+  if (valor % MONTO_MULTA_PASO !== 0) return "El valor debe ser un múltiplo de $1.000. Por ejemplo $1.000, $2.000 o $15.000.";
   return "";
 }
 function mostrarErrorMonto(msg) {

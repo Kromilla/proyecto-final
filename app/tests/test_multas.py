@@ -75,7 +75,7 @@ def test_multa_usuario_inexistente_404(api):
 
 
 @pytest.mark.parametrize("cambios", [{"monto": 0}, {"monto": "mil"}, {"monto": 10**9},
-                                     {"monto": 52}, {"monto": 999}, {"monto": 1050},
+                                     {"monto": 52}, {"monto": 999}, {"monto": 1050}, {"monto": 1500},
                                      {"monto": 500100}, {"motivo": ""}, {"usuario_id": "a b"}])
 def test_multa_datos_invalidos_400(usuario, cambios):
     assert multar(usuario, **cambios)[0] == 400
@@ -85,14 +85,14 @@ def test_multa_sin_monto_400(usuario):
     assert usuario("POST", "/multas", body={"usuario_id": "ana", "motivo": "x"})[0] == 400
 
 
-@pytest.mark.parametrize("monto", [52, 999, 1050, 500100, 1, 0])
+@pytest.mark.parametrize("monto", [52, 999, 1050, 1500, 500100, 1, 0])
 def test_multa_monto_fuera_de_regla_400(usuario, monto):
     status, cuerpo = multar(usuario, monto=monto)
     assert status == 400
-    assert "1000" in cuerpo["error"] and "500000" in cuerpo["error"] and "100" in cuerpo["error"]
+    assert "1000" in cuerpo["error"] and "500000" in cuerpo["error"] and "múltiplos de 1000" in cuerpo["error"]
 
 
-@pytest.mark.parametrize("monto", [1000, 1500, 15000, 500000])
+@pytest.mark.parametrize("monto", [1000, 2000, 15000, 500000])
 def test_multa_monto_valido_limites(usuario, monto):
     con_prestamo_devuelto(usuario, item=f"l-monto-{monto}")
     status, multa = multar(usuario, monto=monto)
