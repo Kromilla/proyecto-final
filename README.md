@@ -1,7 +1,13 @@
 # Proyecto Final — Catálogo de biblioteca serverless (DynamoDB + Redis)
 
 **Asignatura:** Bases de Datos NoSQL — Universidad del Magdalena
-**Integrantes:** Carlos Alfredo Ibañez Ortiz y Adriana Carolina Olivares Vásquez
+**Integrantes:**
+- Carlos Alfredo Ibañez Ortiz
+- Adriana Carolina Olivares Vásquez
+- Yineth Ávila Villalobos
+- Albert David Peña Artunduaga (2020214013)
+- Wilmar Arias Uribe (2022114107)
+
 **Repositorio oficial del curso:** <https://gitlab.com/caov_unimag/bd_no_sql>
 
 API REST serverless que corre **completamente en local** sobre tres
@@ -510,6 +516,7 @@ image: ministack/ministack
 
 ## Créditos
 
-Carlos Alfredo Ibañez Ortiz y Adriana Carolina Olivares Vásquez.
+Carlos Alfredo Ibañez Ortiz, Adriana Carolina Olivares Vásquez, Yineth Ávila Villalobos,
+Albert David Peña Artunduaga y Wilmar Arias Uribe.
 Basado en el proyecto base del curso
 ([gitlab.com/caov_unimag/bd_no_sql](https://gitlab.com/caov_unimag/bd_no_sql)).
