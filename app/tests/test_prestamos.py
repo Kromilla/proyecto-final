@@ -59,6 +59,20 @@ def test_prestar_sin_ejemplares_retorna_409(datos):
     assert status == 409 and "disponibles" in cuerpo["error"]
 
 
+def test_prestar_con_multas_pendientes_retorna_409(datos, tabla_dynamodb):
+    _, prestamo = prestar(datos)
+    datos("PUT", "/prestamos/{id}/devolver", id=prestamo["id"])
+    status, multa = datos("POST", "/multas", body={"usuario_id": "ana", "monto": 2000,
+                                                    "motivo": "Libro dañado"})
+    assert status == 201
+    status, cuerpo = prestar(datos)
+    assert status == 409 and "multas pendientes" in cuerpo["error"]
+    libro = tabla_dynamodb.get_item(Key={"PK": "ITEM#cien-anios", "SK": "METADATA"})["Item"]
+    assert libro["disponibles"] == 1 and libro["prestados"] == 0
+    usuario = tabla_dynamodb.get_item(Key={"PK": "USER#ana", "SK": "PROFILE"})["Item"]
+    assert usuario["prestamos_activos"] == 0 and usuario["saldo_multas"] == 2000
+
+
 def test_prestar_supera_maximo_retorna_409(datos):
     for n in range(4):
         datos("POST", "/items", body={"id": f"l{n}", "titulo": f"L{n}", "autor": "A"})

@@ -196,6 +196,16 @@ def eliminar(usuario_id: str) -> RespuestaApi:
     })
 
 
+def tiene_prestamos(usuario_id: str) -> bool:
+    """True si el usuario tiene al menos un préstamo (activo, vencido o devuelto)."""
+    resultado = tabla().query(
+        KeyConditionExpression=Key("PK").eq(f"USER#{usuario_id}") & Key("SK").begins_with("LOAN#"),
+        Limit=1,
+        Select="COUNT",
+    )
+    return resultado.get("Count", 0) > 0
+
+
 def consultar_coleccion(usuario_id: str, prefijo: str) -> list[Item]:
     """Query PK=USER#<id> AND begins_with(SK, prefijo), más recientes primero."""
     return query_completa(

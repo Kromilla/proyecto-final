@@ -577,7 +577,7 @@ body.modo-tecnico span.mono.solo-tecnico{display:inline!important}
 
       <!-- MULTAS -->
       <section class="vista" id="v-multas">
-        <div class="explica"><svg class="i"><use href="#i-info"/></svg><div>Las multas por <b>retraso</b> se generan solas al registrar una devolución tardía: <b>$1.000 por cada día</b> de atraso. Aquí también puede registrar multas por otros motivos, como daños o pérdida.</div></div>
+        <div class="explica"><svg class="i"><use href="#i-info"/></svg><div>Las multas por <b>retraso</b> se generan solas al registrar una devolución tardía: <b>$1.000 por cada día</b> de atraso. Aquí también puede registrar multas por otros motivos, como daños o pérdida, pero <b>solo si el usuario ha tenido al menos un préstamo</b>.</div></div>
         <div class="rejilla g2" style="align-items:start">
           <div class="tarjeta">
             <h3><svg class="i"><use href="#i-multa"/></svg>Registrar una multa</h3>
@@ -588,7 +588,8 @@ body.modo-tecnico span.mono.solo-tecnico{display:inline!important}
                 <div class="campo"><label for="m-motivo">Motivo <span class="req">*</span></label><input id="m-motivo" required list="motivos" placeholder="Ej. Libro dañado"><small>Explique brevemente la razón</small></div>
               </div>
               <datalist id="motivos"><option value="Libro dañado"><option value="Libro perdido"><option value="Páginas rayadas o arrancadas"><option value="Pérdida del carné"></datalist>
-              <div class="campo"><label for="m-prestamo">¿Se relaciona con un préstamo?</label><select id="m-prestamo" disabled><option value="">Primero elija el usuario</option></select><small>Opcional. Ayuda a saber qué libro generó la multa.</small></div>
+              <div class="campo"><label for="m-prestamo">¿Se relaciona con un préstamo?</label><select id="m-prestamo" disabled><option value="">Primero elija el usuario</option></select><small>Opcional. El usuario sí debe haber tenido al menos un préstamo (activo, vencido o devuelto).</small></div>
+              <div class="aviso" id="aviso-multa-sin-prestamo" hidden style="margin:0 0 12px"><svg class="i"><use href="#i-info"/></svg><div>Solo se puede registrar una multa a un usuario que haya tenido al menos un préstamo.</div></div>
               <button class="boton vino" type="submit"><svg class="i"><use href="#i-mas"/></svg>Registrar multa</button>
             </form>
           </div>
@@ -777,6 +778,8 @@ function traducir(e) {
   const L = (id) => `«${esc(tituloLibro(id))}»`, U = (id) => `<b>${esc(nombreUsuario(id))}</b>`;
   const reglas = [
     [/El usuario ya tiene (\d+) préstamos activos/, (x) => `Este usuario ya tiene ${x[1]} préstamos activos, el máximo permitido. Debe devolver uno antes de llevarse otro.`],
+    [/tiene multas pendientes/, () => "Este usuario tiene multas pendientes. Debe saldarlas antes de llevarse un libro."],
+    [/no tiene préstamos; no se puede registrar una multa/, () => "Solo se puede registrar una multa a un usuario que haya tenido al menos un préstamo."],
     [/No hay ejemplares disponibles de '(.+?)'/, (x) => `No quedan ejemplares disponibles de ${L(x[1])}. Puede reservarlo para que le guarden el próximo que se devuelva.`],
     [/'(.+?)' está reservado para otros usuarios en la fila/, (x) => `${L(x[1])} está apartado para las personas que lo reservaron antes. Solo puede prestarse a quien sigue en la fila.`],
     [/Hay ejemplares disponibles de '(.+?)'/, (x) => `${L(x[1])} tiene ejemplares disponibles: no hace falta reservarlo, se puede prestar de una vez.`],
@@ -1003,17 +1006,17 @@ const VISTAS = {
       "Abra un libro para prestarlo, reservarlo, editarlo o retirarlo del catálogo. La tecla <b>/</b> lleva el cursor a la búsqueda."], cargar: () => cargarCatalogo() },
   usuarios: { titulo: "Usuarios", sub: "Estudiantes y personas registradas", icono: "usuarios", resumen: "Registrar estudiantes y ver sus préstamos y multas.",
     acciones: () => `<button class="boton vino" onclick="formUsuario()">${icono("usuario-mas")}<span>Registrar usuario</span></button>`,
-    ayuda: ["Cada usuario puede tener hasta <b>3 libros prestados</b> a la vez.", "Abra un usuario para ver qué libros tiene, sus multas y para prestarle un libro.",
+    ayuda: ["Cada usuario puede tener hasta <b>3 libros prestados</b> a la vez. Si tiene <b>multas pendientes</b>, no puede llevarse otro libro hasta saldarlas.", "Abra un usuario para ver qué libros tiene, sus multas y para prestarle un libro.",
       "Solo se puede eliminar a alguien que no tenga libros prestados ni reservas."], cargar: () => cargarUsuarios(true) },
   prestamos: { titulo: "Préstamos", sub: "Libros prestados, vencidos y devueltos", icono: "prestamo", resumen: "Prestar libros, registrar devoluciones y renovar plazos.",
     acciones: () => `<button class="boton vino" onclick="asistentePrestamo()">${icono("prestamo")}<span>Prestar libro</span></button>`,
-    ayuda: ["Cada préstamo dura <b>14 días</b>.", "<b>Renovar</b> amplía el plazo 14 días más (máximo 2 veces). No se puede si el préstamo está vencido o si alguien reservó el libro.",
+    ayuda: ["Cada préstamo dura <b>14 días</b>. No se presta a un usuario con <b>multas pendientes</b>.", "<b>Renovar</b> amplía el plazo 14 días más (máximo 2 veces). No se puede si el préstamo está vencido o si alguien reservó el libro.",
       `<b>Devolver</b> registra que el libro volvió. Si está atrasado se genera una multa de ${fmtCOP(MULTA_POR_DIA)} por cada día.`], cargar: () => cargarPrestamos(true) },
   reservas: { titulo: "Reservas", sub: "Filas de espera para libros agotados", icono: "reserva", resumen: "Apartar libros agotados; el primero de la fila recibe el siguiente ejemplar.",
     ayuda: ["Solo se reservan libros <b>agotados</b>. Si hay ejemplares, préstelo directamente.", "El tablero lista todos los libros que tienen fila, aunque la reserva se haya hecho en otro equipo. El nombre aparece si se reservó desde este navegador.",
       "Cuando se devuelve un ejemplar, queda guardado para la primera persona de la fila. Al prestárselo, su reserva se cierra sola."], cargar: () => cargarReservas() },
   multas: { titulo: "Multas", sub: "Cobros por retrasos, daños o pérdidas", icono: "multa", resumen: "Ver y registrar multas por retraso, daño o pérdida.",
-    ayuda: [`Las multas por retraso se crean solas al registrar la devolución: ${fmtCOP(MULTA_POR_DIA)} por día.`, "Use el formulario para multas por otros motivos (daños, pérdidas).",
+    ayuda: [`Las multas por retraso se crean solas al registrar la devolución: ${fmtCOP(MULTA_POR_DIA)} por día.`, "Use el formulario para multas por otros motivos (daños, pérdidas). Solo se puede registrar una multa manual si el usuario ha tenido al menos un préstamo.",
       "Consulte a un usuario para ver el detalle y su saldo pendiente."], cargar: () => cargarMultas() },
   sistema: { titulo: "Sistema", sub: "Conexión, estado del servidor y rendimiento", icono: "servidor", resumen: "Conexión con el servidor, estado de los servicios y datos técnicos.",
     acciones: () => `<button class="boton claro" onclick="cargarSistema()">${icono("recargar")}<span>Actualizar</span></button>`,
@@ -1557,21 +1560,28 @@ async function verUsuario(id, pestana = "prestamos") {
   datos.usuarios.set(u.id, { ...datos.usuarios.get(u.id), ...u });
   $("modal-extra").innerHTML = fuenteBadge(u._fuente);
   const lleno = u.prestamos_activos >= u.max_prestamos;
+  const conMultas = (u.saldo_multas || 0) > 0;
+  let haPrestado = (u.prestamos_activos || 0) > 0;
+  if (!haPrestado) {
+    try { haPrestado = ((await api("GET", `/usuarios/${enc(u.id)}/prestamos`)).prestamos || []).length > 0; }
+    catch { haPrestado = true; }
+  }
   const reservas = reservasLocales().filter((r) => r.usuario_id === u.id);
   $("modal-cuerpo").innerHTML = `<div style="display:flex;gap:16px;align-items:center">${avatar(u, 64)}
       <div><h3 style="font-size:1.45rem">${esc(u.nombre)}</h3><div class="tenue">${esc(u.email)}${u.programa ? " · " + esc(u.programa) : ""} ${codigo(u.id)}</div><div class="tenue">Registrado ${haceCuanto(u.creado_en)}</div></div></div>
     <div class="kv"><div><b>${u.prestamos_activos ?? 0} de ${u.max_prestamos ?? 3}</b><span>Libros prestados</span></div>
       <div><b style="color:${u.saldo_multas ? "var(--rojo)" : "var(--verde)"}">${u.saldo_multas ? fmtCOP(u.saldo_multas) : "Al día"}</b><span>Multas pendientes</span></div>
       <div><b>${reservas.length}</b><span title="Hechas desde este equipo">Reservas</span></div></div>
-    ${lleno ? `<div class="aviso" style="margin-bottom:12px">${icono("info")}<div>Tiene el máximo de libros prestados. Para llevarse otro debe devolver uno.</div></div>` : ""}
+    ${conMultas ? `<div class="aviso" style="margin-bottom:12px">${icono("alerta")}<div>Tiene multas pendientes por ${fmtCOP(u.saldo_multas)}. Debe saldarlas antes de llevarse otro libro.</div></div>` : ""}
+    ${lleno && !conMultas ? `<div class="aviso" style="margin-bottom:12px">${icono("info")}<div>Tiene el máximo de libros prestados. Para llevarse otro debe devolver uno.</div></div>` : ""}
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
       <div class="pestanas" id="ficha-tabs" role="tablist"><button class="pestana" data-p="prestamos" role="tab">${icono("prestamo")}Préstamos</button><button class="pestana" data-p="multas" role="tab">${icono("multa")}Multas</button></div>
       <label for="ficha-estado" style="position:absolute;left:-9999px">Mostrar</label>
       <select id="ficha-estado" style="width:auto"><option value="activo">Libros que tiene ahora</option><option value="devuelto">Ya devueltos</option><option value="">Todo el historial</option></select>
     </div><div id="ficha-contenido"></div>`;
   ponerPie(`<button class="boton peligro" id="ficha-borrar">${icono("borrar")}Eliminar</button><button class="boton claro" id="ficha-editar">${icono("editar")}Editar datos</button><span style="flex:1"></span>
-    <button class="boton claro" id="ficha-multa">${icono("multa")}Registrar multa</button>
-    <button class="boton vino" id="ficha-prestar" ${lleno ? 'disabled title="Tiene el máximo de libros prestados"' : ""}>${icono("prestamo")}Prestarle un libro</button>`);
+    <button class="boton claro" id="ficha-multa" ${haPrestado ? "" : 'disabled title="Solo se puede registrar una multa si ha tenido al menos un préstamo"'}>${icono("multa")}Registrar multa</button>
+    <button class="boton vino" id="ficha-prestar" ${conMultas ? 'disabled title="Tiene multas pendientes"' : lleno ? 'disabled title="Tiene el máximo de libros prestados"' : ""}>${icono("prestamo")}Prestarle un libro</button>`);
   $("ficha-borrar").onclick = () => eliminarUsuario(u);
   $("ficha-editar").onclick = () => formUsuario(u);
   $("ficha-prestar").onclick = () => asistentePrestamo({ usuario: datos.usuarios.get(u.id) });
@@ -1680,16 +1690,23 @@ async function asistentePrestamo(inicial = {}) {
   if (st.libro) st.libro = datos.libros.get(st.libro.id) || st.libro;
   const pasos = () => `<ol class="pasos">${["Usuario", "Libro", "Confirmar"].map((t, i) => `<li class="${i + 1 === st.paso ? "actual" : i + 1 < st.paso ? "hecho" : ""}" ${i + 1 === st.paso ? 'aria-current="step"' : ""}><span class="num">${i + 1 < st.paso ? "✓" : i + 1}</span><span class="txt-paso">${t}</span></li>`).join("")}</ol>`;
   function pintar() {
+    if (st.usuario && (st.usuario.saldo_multas || 0) > 0 && st.paso > 2) st.paso = 2;
     if (st.paso === 1) {
       $("modal-cuerpo").innerHTML = pasos() + `<div class="campo" id="asis-usuario"></div>`;
       crearSelector($("asis-usuario"), "usuario", { etiqueta: "¿Quién se lleva el libro?", ayuda: "Escriba el nombre o el correo y elija de la lista.", recordar: false,
-        bloquear: (u) => u.prestamos_activos >= u.max_prestamos ? `Ya tiene ${u.max_prestamos} libros` : null,
+        bloquear: (u) => u.saldo_multas ? "Tiene multas pendientes" : u.prestamos_activos >= u.max_prestamos ? `Ya tiene ${u.max_prestamos} libros` : null,
         nota: (u) => `<span class="distintivo d-tinta">${u.prestamos_activos ?? 0} de ${u.max_prestamos ?? 3}</span>${u.saldo_multas ? ` <span class="distintivo d-mal" title="Tiene multas sin pagar">Multa</span>` : ""}`,
         alElegir: (u) => { st.usuario = u; st.paso = 2; pintar(); } });
       ponerPie(`<button class="boton claro" data-cerrar>Cancelar</button>`);
     } else if (st.paso === 2) {
       $("modal-cuerpo").innerHTML = pasos() + `<div class="elegido" style="margin-bottom:14px">${avatar(st.usuario)}<span class="txt"><b>${esc(st.usuario.nombre)}</b><small>${st.usuario.prestamos_activos ?? 0} de ${st.usuario.max_prestamos ?? 3} libros prestados</small></span></div>
-        ${st.usuario.saldo_multas ? `<div class="aviso" style="margin-bottom:12px">${icono("info")}<div>Este usuario tiene multas pendientes por ${fmtCOP(st.usuario.saldo_multas)}.</div></div>` : ""}<div class="campo" id="asis-libro"></div>`;
+        ${st.usuario.saldo_multas ? `<div class="aviso" style="margin-bottom:12px">${icono("alerta")}<div>Este usuario tiene multas pendientes por ${fmtCOP(st.usuario.saldo_multas)}. Debe saldarlas antes de llevarse un libro.</div></div>` : ""}`;
+      if (st.usuario.saldo_multas) {
+        ponerPie(`<button class="boton claro" id="asis-atras">${icono("izq")}Atrás</button><span style="flex:1"></span><button class="boton claro" data-cerrar>Cancelar</button>`);
+        $("asis-atras").onclick = () => { st.paso = 1; st.usuario = null; pintar(); };
+        return;
+      }
+      $("modal-cuerpo").innerHTML += `<div class="campo" id="asis-libro"></div>`;
       crearSelector($("asis-libro"), "libro", { etiqueta: "¿Qué libro se lleva?", ayuda: "Los libros agotados no se pueden prestar; se pueden reservar.", recordar: false,
         bloquear: (l) => l.disponibles > 0 ? null : "Agotado: puede reservarlo",
         alElegir: (l) => { st.libro = l; st.paso = 3; pintar(); } });
@@ -1896,8 +1913,12 @@ async function verFila(itemId) {
 let selMultaUsuario = null, selVerMultas = null;
 function cargarMultas() {
   if (!selMultaUsuario) {
-    selMultaUsuario = crearSelector($("sel-m-usuario"), "usuario", { etiqueta: "Usuario", obligatorio: true, ayuda: "A quién se le cobra la multa",
-      alElegir: (u) => cargarPrestamosParaMulta(u.id), alLimpiar: () => { $("m-prestamo").innerHTML = '<option value="">Primero elija el usuario</option>'; $("m-prestamo").disabled = true; } });
+    selMultaUsuario = crearSelector($("sel-m-usuario"), "usuario", { etiqueta: "Usuario", obligatorio: true, ayuda: "A quién se le cobra la multa. Debe haber tenido al menos un préstamo.",
+      alElegir: (u) => cargarPrestamosParaMulta(u.id), alLimpiar: () => {
+        $("m-prestamo").innerHTML = '<option value="">Primero elija el usuario</option>'; $("m-prestamo").disabled = true;
+        const aviso = $("aviso-multa-sin-prestamo"); if (aviso) aviso.hidden = true;
+        const btn = $("form-multa").querySelector("button[type=submit]"); if (btn) { btn.disabled = false; btn.title = ""; }
+      } });
     selVerMultas = crearSelector($("sel-vm-usuario"), "usuario", { etiqueta: "Usuario", alElegir: (u) => verMultas(u.id), alLimpiar: () => ($("multas-resultado").innerHTML = "") });
   }
   const deudores = [...datos.usuarios.values()].filter((u) => u.saldo_multas > 0).sort((a, b) => b.saldo_multas - a.saldo_multas);
@@ -1908,12 +1929,27 @@ function cargarMultas() {
 }
 async function cargarPrestamosParaMulta(uid) {
   const sel = $("m-prestamo");
+  const btn = $("form-multa").querySelector("button[type=submit]");
+  const aviso = $("aviso-multa-sin-prestamo");
   sel.disabled = true; sel.innerHTML = '<option value="">Cargando préstamos…</option>';
+  if (aviso) aviso.hidden = true;
+  if (btn) btn.disabled = true;
   try {
     const d = await api("GET", `/usuarios/${enc(uid)}/prestamos`);
-    sel.innerHTML = '<option value="">No, es por otro motivo</option>' + (d.prestamos || []).map((p) => `<option value="${esc(p.id)}">«${esc(p.titulo)}» — prestado el ${fmtFecha(p.fecha_prestamo)}${p.estado === "DEVUELTO" ? " (devuelto)" : ""}</option>`).join("");
-    sel.disabled = false;
-  } catch { sel.innerHTML = '<option value="">No se pudieron cargar los préstamos</option>'; }
+    const lista = d.prestamos || [];
+    if (!lista.length) {
+      sel.innerHTML = '<option value="">Este usuario no tiene préstamos</option>';
+      if (aviso) aviso.hidden = false;
+      if (btn) { btn.disabled = true; btn.title = "El usuario no tiene préstamos"; }
+    } else {
+      sel.innerHTML = '<option value="">No, es por otro motivo</option>' + lista.map((p) => `<option value="${esc(p.id)}">«${esc(p.titulo)}» — prestado el ${fmtFecha(p.fecha_prestamo)}${p.estado === "DEVUELTO" ? " (devuelto)" : ""}</option>`).join("");
+      sel.disabled = false;
+      if (btn) { btn.disabled = false; btn.title = ""; }
+    }
+  } catch (e) {
+    sel.innerHTML = '<option value="">No se pudieron cargar los préstamos</option>';
+    if (btn) { btn.disabled = true; btn.title = "No se pudieron cargar los préstamos"; }
+  }
 }
 function tablaMultas(d) {
   const lista = d.multas || [];
@@ -1930,6 +1966,9 @@ $("form-multa").onsubmit = async (e) => {
   e.preventDefault();
   const u = selMultaUsuario.valor();
   if (!u) return toast("aviso", "Falta el usuario", "Elija a quién se le registra la multa.");
+  if ($("aviso-multa-sin-prestamo") && !$("aviso-multa-sin-prestamo").hidden) {
+    return toast("aviso", "Sin préstamos", "Solo se puede registrar una multa a un usuario que haya tenido al menos un préstamo.");
+  }
   const cuerpo = { usuario_id: u.id, monto: parseInt($("m-monto").value, 10), motivo: $("m-motivo").value.trim() };
   if ($("m-prestamo").value) cuerpo.prestamo_id = $("m-prestamo").value;
   await conCarga(e.target.querySelector("button[type=submit]"), async () => {

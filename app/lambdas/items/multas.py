@@ -20,8 +20,9 @@ import comun
 import usuarios
 from comun import (
     TABLE_NAME, ErrorApi, Item, RespuestaApi, entero, es_cancelada, leer_json,
-    nuevo_id, publico, respuesta, texto, validar_id,
+    nuevo_id, publico, respuesta, tabla, texto, validar_id,
 )
+from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
 MONTO_MAXIMO: int = 10_000_000
@@ -73,6 +74,7 @@ def crear(event: dict[str, Any]) -> RespuestaApi:
     monto = entero(datos["monto"], "monto", 1, MONTO_MAXIMO)
     motivo = texto(datos, "motivo", obligatorio=True) or ""
     prestamo_id = None
+    prestamo = None
     if "prestamo_id" in datos:
         prestamo_id = validar_id(datos["prestamo_id"], "prestamo_id")
         prestamo = prestamos.buscar(prestamo_id)
@@ -80,23 +82,43 @@ def crear(event: dict[str, Any]) -> RespuestaApi:
             raise ErrorApi(404, f"Préstamo '{prestamo_id}' no encontrado")
         if prestamo["usuario_id"] != usuario_id:
             raise ErrorApi(400, "El préstamo no pertenece a ese usuario")
+    else:
+        if not usuarios.obtener_de_dynamodb(usuario_id):
+            raise ErrorApi(404, f"Usuario '{usuario_id}' no encontrado")
+        historial = tabla().query(
+            KeyConditionExpression=Key("PK").eq(f"USER#{usuario_id}") & Key("SK").begins_with("LOAN#"),
+            Limit=1,
+        ).get("Items", [])
+        if not historial:
+            raise ErrorApi(409, "El usuario no tiene préstamos; no se puede registrar una multa")
+        # Cualquier préstamo del historial sirve para la condición atómica.
+        prestamo = historial[0]
 
     multa = nueva_multa(usuario_id, monto, motivo, "MANUAL", prestamo_id)
+    operaciones: list[dict[str, Any]] = [
+        {"Put": {"TableName": TABLE_NAME, "Item": multa,
+                 "ConditionExpression": "attribute_not_exists(PK)"}},
+        {"Update": {
+            "TableName": TABLE_NAME,
+            "Key": usuarios.clave_usuario(usuario_id),
+            "UpdateExpression": "SET saldo_multas = if_not_exists(saldo_multas, :cero) + :monto",
+            "ConditionExpression": "attribute_exists(PK)",
+            "ExpressionAttributeValues": {":cero": 0, ":monto": monto},
+        }},
+    ]
+    if prestamo:
+        operaciones.append({"ConditionCheck": {
+            "TableName": TABLE_NAME,
+            "Key": {"PK": prestamo["PK"], "SK": prestamo["SK"]},
+            "ConditionExpression": "attribute_exists(PK)",
+        }})
     try:
-        comun.cliente().transact_write_items(TransactItems=[
-            {"Put": {"TableName": TABLE_NAME, "Item": multa,
-                     "ConditionExpression": "attribute_not_exists(PK)"}},
-            {"Update": {
-                "TableName": TABLE_NAME,
-                "Key": usuarios.clave_usuario(usuario_id),
-                "UpdateExpression": "SET saldo_multas = if_not_exists(saldo_multas, :cero) + :monto",
-                "ConditionExpression": "attribute_exists(PK)",
-                "ExpressionAttributeValues": {":cero": 0, ":monto": monto},
-            }},
-        ])
+        comun.cliente().transact_write_items(TransactItems=operaciones)
     except ClientError as e:
         if es_cancelada(e):
-            raise ErrorApi(404, f"Usuario '{usuario_id}' no encontrado")
+            if not usuarios.obtener_de_dynamodb(usuario_id):
+                raise ErrorApi(404, f"Usuario '{usuario_id}' no encontrado")
+            raise ErrorApi(409, "No se pudo registrar la multa; intente de nuevo")
         raise
     invalidar(usuario_id)
     return respuesta(201, publico(multa))

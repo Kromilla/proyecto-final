@@ -20,9 +20,18 @@ def multar(api, **datos):
                                         "motivo": "Libro dañado", **datos})
 
 
+def con_prestamo_devuelto(api, usuario="ana", item="l-multa"):
+    """Deja al usuario con un préstamo devuelto, para poder registrar una multa."""
+    api("POST", "/items", body={"id": item, "titulo": "T", "autor": "A"})
+    _, prestamo = api("POST", "/prestamos", body={"usuario_id": usuario, "item_id": item})
+    api("PUT", "/prestamos/{id}/devolver", id=prestamo["id"])
+    return prestamo
+
+
 # ── POST /multas ──────────────────────────────────────────────────────
 
 def test_crear_multa_y_actualizar_saldo(usuario, tabla_dynamodb):
+    con_prestamo_devuelto(usuario)
     status, multa = multar(usuario)
     assert status == 201
     assert multa["monto"] == 5000 and multa["estado"] == "PENDIENTE" and multa["origen"] == "MANUAL"
@@ -34,6 +43,7 @@ def test_crear_multa_y_actualizar_saldo(usuario, tabla_dynamodb):
 
 
 def test_crear_multa_invalida_cache_del_usuario(usuario, redis_fake):
+    con_prestamo_devuelto(usuario)
     usuario("GET", "/usuarios/{id}/multas", id="ana")
     usuario("GET", "/usuarios/{id}", id="ana")
     multar(usuario)
@@ -74,9 +84,26 @@ def test_multa_sin_monto_400(usuario):
     assert usuario("POST", "/multas", body={"usuario_id": "ana", "motivo": "x"})[0] == 400
 
 
+def test_multa_sin_prestamos_retorna_409(usuario, tabla_dynamodb):
+    status, cuerpo = multar(usuario)
+    assert status == 409 and "préstamos" in cuerpo["error"]
+    perfil = tabla_dynamodb.get_item(Key={"PK": "USER#ana", "SK": "PROFILE"})["Item"]
+    assert perfil["saldo_multas"] == 0
+    fines = tabla_dynamodb.query(KeyConditionExpression="PK = :pk AND begins_with(SK, :sk)",
+                                 ExpressionAttributeValues={":pk": "USER#ana", ":sk": "FINE#"})["Items"]
+    assert fines == []
+
+
+def test_multa_con_prestamo_devuelto_201(usuario):
+    prestamo = con_prestamo_devuelto(usuario)
+    status, multa = multar(usuario, prestamo_id=prestamo["id"])
+    assert status == 201 and multa["prestamo_id"] == prestamo["id"]
+
+
 # ── GET /usuarios/{id}/multas (Query por PK + Cache-Aside) ───────────
 
 def test_listar_multas_miss_y_hit(usuario):
+    con_prestamo_devuelto(usuario)
     multar(usuario, monto=2000)
     multar(usuario, monto=3000)
     status, cuerpo = usuario("GET", "/usuarios/{id}/multas", id="ana")
@@ -113,6 +140,7 @@ def test_devolucion_a_tiempo_no_genera_multa(usuario):
 
 
 def test_eliminar_usuario_borra_sus_multas(usuario):
+    con_prestamo_devuelto(usuario)
     multar(usuario)
     _, cuerpo = usuario("DELETE", "/usuarios/{id}", id="ana")
     assert cuerpo["multas_eliminadas"] == 1

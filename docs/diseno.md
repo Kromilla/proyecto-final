@@ -123,6 +123,8 @@ Decisiones:
 |---|---|
 | No prestar sin ejemplares (`disponibles > 0`) | Condición del `UpdateItem` del libro en la transacción |
 | Máximo 3 préstamos activos por usuario | Condición `prestamos_activos < :max` |
+| No prestar si el usuario tiene multas pendientes (`saldo_multas > 0`) | Condición `saldo_multas <= :cero` en la transacción de `POST /prestamos` (409) |
+| Una multa manual solo se registra si el usuario ha tenido al menos un préstamo | Lectura del historial `LOAN#` y `ConditionCheck` del préstamo en `POST /multas` (409) |
 | Plazo de 14 días (`DIAS_PRESTAMO`) | `fecha_limite` al prestar |
 | Solo se reserva un libro **sin ejemplares libres** | Condición `disponibles = 0 OR reservas_pendientes > 0` |
 | Si hay fila, el libro solo se presta a los **N primeros** de la fila (N = ejemplares disponibles); el préstamo **consume** la reserva | `prestamos.crear` lee la fila y agrega a la transacción el `Delete` de la reserva y `reservas_pendientes - 1` |
@@ -133,6 +135,10 @@ Decisiones:
 
 Las multas quedan registradas con estado `PENDIENTE` y se suman a
 `saldo_multas`; el pago de multas queda por fuera del alcance de este API.
+Mientras el saldo sea mayor que cero, `POST /prestamos` responde `409`.
+`POST /multas` (multa manual) responde `409` si el usuario nunca ha tenido
+un préstamo, aunque `prestamo_id` sea opcional; si se envía, debe ser un
+préstamo válido de ese usuario.
 
 ## 4. Redis: estructuras, patrones y justificación
 

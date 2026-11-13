@@ -144,8 +144,9 @@ def crear(event: dict[str, Any]) -> RespuestaApi:
             "TableName": TABLE_NAME,
             "Key": usuarios.clave_usuario(usuario_id),
             "UpdateExpression": "SET prestamos_activos = prestamos_activos + :uno",
-            "ConditionExpression": "attribute_exists(PK) AND prestamos_activos < :max",
-            "ExpressionAttributeValues": {":uno": 1, ":max": usuarios.max_prestamos()},
+            "ConditionExpression": ("attribute_exists(PK) AND prestamos_activos < :max AND "
+                                    "(attribute_not_exists(saldo_multas) OR saldo_multas <= :cero)"),
+            "ExpressionAttributeValues": {":uno": 1, ":max": usuarios.max_prestamos(), ":cero": 0},
         }},
         {"Put": {
             "TableName": TABLE_NAME,
@@ -182,6 +183,8 @@ def _explicar_rechazo(usuario_id: str, item_id: str) -> None:
     libro = libros.obtener_de_dynamodb(item_id)
     if not libro:
         raise ErrorApi(404, f"Ítem '{item_id}' no encontrado")
+    if int(usuario.get("saldo_multas", 0)) > 0:
+        raise ErrorApi(409, "El usuario tiene multas pendientes; no se puede prestar hasta saldarlas")
     if int(libro.get("disponibles", 0)) <= 0:
         raise ErrorApi(409, f"No hay ejemplares disponibles de '{item_id}'; puede reservarlo")
     if int(usuario.get("prestamos_activos", 0)) >= usuarios.max_prestamos():
