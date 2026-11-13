@@ -1,12 +1,12 @@
 # Proyecto Final — Catálogo de biblioteca serverless (DynamoDB + Redis)
 
-**Asignatura:** Bases de Datos NoSQL — Universidad del Magdalena
+**Asignatura:** Bases de Datos NoSQL — Universidad del Magdalena  
 **Integrantes:**
 - Carlos Alfredo Ibañez Ortiz
 - Adriana Carolina Olivares Vásquez
 - Yineth Ávila Villalobos
-- Albert David Peña Artunduaga (2020214013)
-- Wilmar Arias Uribe (2022114107)
+- Albert David Peña Artunduaga
+- Wilmar Arias Uribe
 
 **Repositorio oficial del curso:** <https://gitlab.com/caov_unimag/bd_no_sql>
 
