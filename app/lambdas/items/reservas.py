@@ -2,7 +2,7 @@
 reservas.py — Reservas de libros sin stock (rutas /reservas)
 ────────────────────────────────────────────────────────────
   POST   /reservas              Reservar un libro agotado   TransactWriteItems + RPUSH
-  GET    /items/{id}/reservas   Fila de espera del libro    LRANGE + Query GSI3
+  GET    /items/{id}/reservas   Fila de espera del libro    Query GSI3 (+ LRANGE si coincide)
   DELETE /reservas/{id}         Cancelar la reserva         TransactWriteItems + LREM
 
 Ítem en la tabla:
@@ -13,8 +13,8 @@ El libro lleva el contador `reservas_pendientes`.
 
 Redis: List cola:item#<id> con los ids de reserva en orden de llegada
 (RPUSH al reservar, LREM al cancelar o al convertirse en préstamo).
-DynamoDB es la fuente de verdad: si Redis no responde o la lista no coincide
-con `reservas_pendientes`, la cola se reconstruye desde el GSI3.
+DynamoDB (GSI3) es la fuente de verdad: Redis solo se usa si la List tiene
+exactamente los mismos ids, en el mismo orden; si no, se reconstruye.
 
 Regla: un libro con reservas pendientes solo se presta a los primeros N
 usuarios de la fila, donde N = ejemplares disponibles (ver prestamos.crear).
@@ -49,18 +49,31 @@ def buscar(reserva_id: str) -> Item | None:
     return items[0] if items else None
 
 
-def cola(item_id: str, pendientes: int) -> list[str]:
+def _reservas_de_item(item_id: str) -> list[Item]:
+    """Reservas del libro en el GSI3, ordenadas por fecha_reserva (orden de llegada)."""
+    filas = query_completa(
+        IndexName="GSI3",
+        KeyConditionExpression=Key("GSI3PK").eq(f"RESERVAS#ITEM#{item_id}"),
+    )
+    filas.sort(key=lambda f: (str(f.get("fecha_reserva", "")), f["id"]))
+    return filas
+
+
+def cola(item_id: str, pendientes: int | None = None, incluir: str | None = None) -> list[str]:
     """
-    Fila de reservas del libro (ids en orden). Primero Redis (LRANGE); si no
-    responde o no coincide con el contador de DynamoDB, se reconstruye con una
-    Query al GSI3 y se vuelve a cargar la List (DEL + RPUSH).
+    Fila de reservas del libro (ids en orden). DynamoDB (GSI3) es la fuente de
+    verdad. Redis (LRANGE) solo se usa si la List tiene exactamente los mismos
+    ids, en el mismo orden; si no, se reconstruye con DEL + RPUSH.
+
+    `incluir` agrega un id recién escrito que el GSI3 todavía podría no mostrar.
+    `pendientes` se acepta por compatibilidad; ya no decide si se confía en Redis.
     """
+    ids = [f["id"] for f in _reservas_de_item(item_id)]
+    if incluir and incluir not in ids:
+        ids.append(incluir)
     en_redis = cache.cola_leer(item_id)
-    if en_redis is not None and len(en_redis) == pendientes:
+    if en_redis is not None and en_redis == ids:
         return en_redis
-    filas = query_completa(IndexName="GSI3",
-                           KeyConditionExpression=Key("GSI3PK").eq(f"RESERVAS#ITEM#{item_id}"))
-    ids = [f["id"] for f in filas]
     logger.info("Cola de %s reconstruida desde DynamoDB (%d reservas)", item_id, len(ids))
     cache.cola_reemplazar(item_id, ids)
     return ids
@@ -68,35 +81,27 @@ def cola(item_id: str, pendientes: int) -> list[str]:
 
 def listar_de_item(item_id: str) -> RespuestaApi:
     """
-    GET /items/{id}/reservas. Orden de la fila: LRANGE en Redis; si Redis no
-    responde o la List no coincide con reservas_pendientes, se usa el GSI3
-    de DynamoDB (y se reconstruye la List). Los nombres salen del perfil.
+    GET /items/{id}/reservas. La fuente de verdad es el GSI3, ordenado por
+    fecha_reserva. Redis solo se usa si LRANGE coincide exactamente; si no,
+    se reconstruye la List (DEL + RPUSH). Los nombres salen del perfil.
     """
     libro = libros.obtener_de_dynamodb(item_id)
     if not libro:
         raise ErrorApi(404, f"Ítem '{item_id}' no encontrado")
 
-    pendientes = int(libro.get("reservas_pendientes", 0))
-    en_redis = cache.cola_leer(item_id)
-    filas = query_completa(
-        IndexName="GSI3",
-        KeyConditionExpression=Key("GSI3PK").eq(f"RESERVAS#ITEM#{item_id}"),
-    )
+    filas = _reservas_de_item(item_id)
+    ids = [f["id"] for f in filas]
     por_id = {f["id"]: f for f in filas}
-
-    if en_redis is not None and len(en_redis) == pendientes:
-        ids = en_redis
+    en_redis = cache.cola_leer(item_id)
+    if en_redis is not None and en_redis == ids:
         fuente = "redis"
     else:
-        ids = [f["id"] for f in filas]
         fuente = "dynamodb"
         cache.cola_reemplazar(item_id, ids)
 
     lista: list[dict[str, Any]] = []
     for reserva_id in ids:
-        reserva = por_id.get(reserva_id)
-        if not reserva:
-            continue
+        reserva = por_id[reserva_id]
         usuario = usuarios.obtener_de_dynamodb(reserva["usuario_id"])
         lista.append({
             "id": reserva["id"],
@@ -123,7 +128,7 @@ def crear(event: dict[str, Any]) -> RespuestaApi:
     usuario_id = validar_id(datos["usuario_id"], "usuario_id")
     item_id = validar_id(datos["item_id"], "item_id")
 
-    libro = libros.obtener_de_dynamodb(item_id)
+    libro = libros.obtener_de_dynamodb(item_id, consistente=True)
     if not libro:
         raise ErrorApi(404, f"Ítem '{item_id}' no encontrado")
     if int(libro.get("disponibles", 0)) > 0 and int(libro.get("reservas_pendientes", 0)) == 0:
@@ -178,9 +183,15 @@ def crear(event: dict[str, Any]) -> RespuestaApi:
 
     pendientes = int(libro.get("reservas_pendientes", 0)) + 1
     en_redis = cache.cola_leer(item_id)
-    if en_redis is not None and len(en_redis) == pendientes - 1:
+    # RPUSH solo si la List ya tenía exactamente las reservas anteriores.
+    # Si Redis está vacío, incompleto o falló la lectura, no se omite la
+    # reserva: cola(..., incluir=) reconstruye desde DynamoDB y, si el GSI3
+    # todavía no muestra el ítem recién escrito, lo agrega.
+    if (en_redis is not None
+            and reserva_id not in en_redis
+            and len(en_redis) == pendientes - 1):
         cache.cola_agregar(item_id, reserva_id)          # RPUSH al final de la fila
-    fila = cola(item_id, pendientes)
+    fila = cola(item_id, pendientes, incluir=reserva_id)
     cache.cache_delete(cache.cache_key_item(item_id))    # cambió reservas_pendientes
     posicion = fila.index(reserva_id) + 1 if reserva_id in fila else None
     return respuesta(201, {**publico(reserva), "posicion": posicion})

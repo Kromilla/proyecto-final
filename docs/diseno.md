@@ -46,7 +46,7 @@ Se definieron **antes** de diseñar la tabla. Ninguno usa `Scan`.
 | AP24 | Renovar un préstamo | `PUT /prestamos/{id}/renovar` | `TransactWriteItems` (`ConditionCheck` libro + `UpdateItem` préstamo) + `DEL` |
 | AP25 | Reservar un libro agotado | `POST /reservas` | `TransactWriteItems` (libro, `ConditionCheck` usuario, reserva) + `RPUSH` |
 | AP26 | Cancelar una reserva | `DELETE /reservas/{id}` | `Query` GSI1 + `TransactWriteItems` + `LREM` |
-| AP27 | Fila de espera de un libro | `GET /items/{id}/reservas` | Redis `LRANGE` → `Query` GSI3 + perfiles; si Redis no responde, solo GSI3 |
+| AP27 | Fila de espera de un libro | `GET /items/{id}/reservas` | `Query` GSI3 (orden por `fecha_reserva`) + perfiles; `LRANGE` solo si coincide exactamente; si no, `DEL` + `RPUSH` |
 | AP28 | Registrar una multa | `POST /multas` | `TransactWriteItems` (multa + saldo del usuario) + `DEL` |
 | AP29 | Estado del caché | `GET /cache/stats` | `HGETALL`, `DBSIZE`, `SCAN` |
 
@@ -166,7 +166,7 @@ DynamoDB es la **fuente de verdad**; Redis es la **velocidad**.
 | **Write-Through** | `POST /items`, `PUT /items/{id}`, `POST /usuarios`, `PUT /usuarios/{id}` | El dato recién creado o editado se consulta enseguida: el primer `GET` ya es *hit* y nunca hay versión vieja en caché. |
 | **TTL por clave** | Todas las claves String y los Sets | `SETEX` (= `SET` + `EXPIRE 300`): aunque algo cambie por fuera del API, en 5 minutos como máximo el caché se renueva. |
 | **Invalidación** | Préstamos, devoluciones, renovaciones, reservas, multas, borrados; cambios de libros (búsquedas y categorías) | Un préstamo cambia el stock del libro y los datos del usuario: se borran `item#<id>`, `usuario#<id>` y `usuario#<id>#prestamos`. Crear, editar o borrar un libro invalida **todas** las búsquedas (`SMEMBERS indice:busquedas` + `DEL`) y el Set `categorias`. |
-| **Cola (List)** | `POST /reservas` (`RPUSH`), `DELETE /reservas/{id}` y préstamo de un reservado (`LREM`) | FIFO natural: la posición en la fila es el índice en la List. Si Redis se reinicia o la List no coincide con `reservas_pendientes`, se reconstruye desde el GSI3 (`DEL` + `RPUSH` en un `MULTI`). |
+| **Cola (List)** | `POST /reservas` (`RPUSH`), `DELETE /reservas/{id}` y préstamo de un reservado (`LREM`) | FIFO natural: la posición en la fila es el índice en la List. DynamoDB (GSI3) es la fuente de verdad. Redis solo se usa si la List tiene exactamente los mismos ids, en el mismo orden; si no (o si Redis se reinicia), se reconstruye desde el GSI3 (`DEL` + `RPUSH` en un `MULTI`). |
 | **Set** | `categorias`, `indice:busquedas` | Conjuntos sin repetidos; `SMEMBERS` en una sola operación. |
 | **Contadores en tiempo real (Sorted Set)** | `GET /items/{id}`, `POST /prestamos` → `GET /items/populares` | Rankings sin escribir en DynamoDB en cada lectura. |
 | **Métricas (Hash)** | `GET /cache/stats` | Demuestra con datos la tasa de aciertos (*hit ratio*). Se usa `SCAN`, no `KEYS`. |
@@ -207,8 +207,8 @@ Gateway (`handler.py`). Como API Gateway ya distingue el recurso fijo
 `/items/buscar` del recurso `/items/{id}` (y `/prestamos/vencidos` de
 `/prestamos/{id}`), el enrutador es un diccionario `(método, recurso)` y el
 orden de declaración no importa. `GET /items/{id}/reservas` es un recurso
-hijo de `/items/{id}`: devuelve la fila ordenada (LRANGE, o GSI3 si Redis
-no responde) con el nombre de cada persona. El código está separado por entidad
+hijo de `/items/{id}`: devuelve la fila ordenada por `fecha_reserva`
+(GSI3; LRANGE solo si coincide exactamente) con el nombre de cada persona. El código está separado por entidad
 (`libros.py`, `categorias.py`, `usuarios.py`, `prestamos.py`, `reservas.py`,
 `multas.py`). La infraestructura se define con **AWS CDK en Python**
 (`app/infra/stack.py`).

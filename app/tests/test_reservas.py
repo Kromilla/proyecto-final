@@ -188,3 +188,46 @@ def test_listar_fila_con_redis_caido_usa_dynamodb(agotado, monkeypatch):
     assert [r["nombre"] for r in cuerpo["reservas"]] == ["Beto", "Caro"]
     assert [r["posicion"] for r in cuerpo["reservas"]] == [1, 2]
 
+
+def test_listar_fila_reconstruye_si_redis_esta_incompleta(agotado, redis_fake):
+    """Reproduce el fallo en vivo: el contador del libro es 2, pero Redis solo tiene 1."""
+    _, r1 = reservar(agotado, "beto")
+    _, r2 = reservar(agotado, "caro")
+    redis_fake.delete(cache.cache_key_cola("cien"))
+    redis_fake.rpush(cache.cache_key_cola("cien"), r1["id"])   # falta caro
+    assert redis_fake.llen(cache.cache_key_cola("cien")) == 1
+
+    status, cuerpo = agotado("GET", "/items/{id}/reservas", id="cien")
+    assert status == 200 and cuerpo["_fuente"] == "dynamodb"
+    assert cuerpo["total"] == 2
+    assert [r["id"] for r in cuerpo["reservas"]] == [r1["id"], r2["id"]]
+    assert [r["nombre"] for r in cuerpo["reservas"]] == ["Beto", "Caro"]
+    assert redis_fake.lrange(cache.cache_key_cola("cien"), 0, -1) == [r1["id"], r2["id"]]
+
+
+def test_listar_fila_no_confia_en_redis_aunque_el_largo_coincida(agotado, redis_fake, tabla_dynamodb):
+    """Si Redis tiene el mismo número de ids, pero no son los de DynamoDB, se reconstruye."""
+    _, r1 = reservar(agotado, "beto")
+    _, r2 = reservar(agotado, "caro")
+    redis_fake.delete(cache.cache_key_cola("cien"))
+    redis_fake.rpush(cache.cache_key_cola("cien"), r1["id"], "id-fantasma")
+    libro = tabla_dynamodb.get_item(Key={"PK": "ITEM#cien", "SK": "METADATA"})["Item"]
+    assert int(libro["reservas_pendientes"]) == 2
+    assert redis_fake.llen(cache.cache_key_cola("cien")) == 2
+
+    status, cuerpo = agotado("GET", "/items/{id}/reservas", id="cien")
+    assert status == 200 and cuerpo["_fuente"] == "dynamodb"
+    assert [r["id"] for r in cuerpo["reservas"]] == [r1["id"], r2["id"]]
+    assert redis_fake.lrange(cache.cache_key_cola("cien"), 0, -1) == [r1["id"], r2["id"]]
+
+
+def test_reservar_con_cola_desfasada_igual_queda_en_redis(agotado, redis_fake):
+    """Si Redis no tiene las reservas anteriores, POST no se salta el nuevo turno."""
+    _, r1 = reservar(agotado, "beto")
+    redis_fake.delete(cache.cache_key_cola("cien"))     # como si el RPUSH anterior no hubiera ocurrido
+    status, r2 = reservar(agotado, "caro")
+    assert status == 201 and r2["posicion"] == 2
+    assert redis_fake.lrange(cache.cache_key_cola("cien"), 0, -1) == [r1["id"], r2["id"]]
+    _, cuerpo = agotado("GET", "/items/{id}/reservas", id="cien")
+    assert [r["id"] for r in cuerpo["reservas"]] == [r1["id"], r2["id"]]
+

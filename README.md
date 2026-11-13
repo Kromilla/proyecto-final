@@ -236,7 +236,7 @@ http://localhost:4566/restapis/<api-id>/prod/_user_request_/health
 | 23 | `PUT` | `/prestamos/{id}/renovar` | +14 días; máx. 2 veces; no vencido; sin reservas del libro | Transacción + **invalidación** | `200` · `404` · `409` |
 | 24 | `POST` | `/reservas` | Reservar un libro sin ejemplares libres; responde la `posicion` en la fila | Transacción + `RPUSH` (List) | `201` · `400` · `404` · `409` |
 | 25 | `DELETE` | `/reservas/{id}` | Cancelar la reserva | Transacción + `LREM` | `200` · `404` |
-| 26 | `GET` | `/items/{id}/reservas` | Fila de espera del libro (id, usuario, nombre, posición y fecha) | `LRANGE` + Query GSI3 | `200` · `404` |
+| 26 | `GET` | `/items/{id}/reservas` | Fila de espera del libro (id, usuario, nombre, posición y fecha) | Query GSI3; `LRANGE` solo si coincide; si no, se reconstruye | `200` · `404` |
 | 27 | `POST` | `/multas` | Registrar una multa manual (el usuario debe haber tenido un préstamo) | Transacción + **invalidación** | `201` · `400` · `404` · `409` |
 | 28 | `GET` | `/cache/stats` | Hits, misses, *hit ratio* y claves en Redis | Hash + `SCAN` | `200` · `503` |
 
@@ -457,7 +457,7 @@ evento de API Gateway y el fixture `viajar_en_el_tiempo` que cambia la fecha
 | `test_categorias.py` | `GET /items/buscar` (sin tildes ni mayúsculas, Cache-Aside, Set índice, invalidación al crear/editar/borrar libros), `GET /categorias` (Set con TTL, contadores, invalidación), `GET /categorias/{nombre}/items` (GSI3, paginación, URL encoding); `/items/buscar` no se confunde con `/items/{id}` |
 | `test_usuarios.py` | `POST`, `GET`, `PUT`, `DELETE /usuarios…`, `GET /usuarios` (GSI2, paginación) y `GET /usuarios/{id}/prestamos` |
 | `test_prestamos.py` | `POST /prestamos` (transacción, sin ejemplares, máximo, multas pendientes, 404), `GET /prestamos?estado=`, `GET /prestamos/vencidos`, `GET /prestamos/{id}`, `PUT …/devolver`, `PUT …/renovar` (+14 días, máximo 2, vencido, con reservas) |
-| `test_reservas.py` | `POST /reservas` (List en orden, posición, reconstrucción de la cola), `GET /items/{id}/reservas` (nombres, posiciones, orden Redis o GSI3 si Redis cae), `DELETE /reservas/{id}` (`LREM`), solo el primero de la fila puede prestar, Redis caído |
+| `test_reservas.py` | `POST /reservas` (List en orden, posición, reconstrucción de la cola, Redis desfasado), `GET /items/{id}/reservas` (nombres, posiciones, GSI3 como fuente de verdad, reconstrucción si Redis no coincide), `DELETE /reservas/{id}` (`LREM`), solo el primero de la fila puede prestar, Redis caído |
 | `test_multas.py` | `POST /multas` (requiere historial de préstamos, 409 si no hay; monto entre 1000 y 500000, múltiplos de 1000), `GET /usuarios/{id}/multas` (Cache-Aside, saldo), multa automática por devolución tardía |
 | `test_cache.py` | `cache.py` (get/set/delete, TTL 300 por defecto, rankings, stats, Redis caído) y `GET /cache/stats` |
 
