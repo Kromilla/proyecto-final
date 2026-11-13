@@ -627,10 +627,9 @@ body.modo-tecnico span.mono.solo-tecnico{display:inline!important}
 "use strict";
 /* Abrir con `python servir.py` (http://127.0.0.1:8765). /detectar-api
    lista el API en LocalStack; el navegador no puede (403 por Origin).
-   localStorage: baseUrl, reservasLocales, modoTecnico, bienvenidaVista. */
+   localStorage: baseUrl, modoTecnico, bienvenidaVista. */
 const $ = (id) => document.getElementById(id);
 const CLAVE_BASE = "baseUrl";
-const CLAVE_RESERVAS = "reservasLocales";
 const CLAVE_TECNICO = "modoTecnico";
 const CLAVE_BIENVENIDA = "bienvenidaVista";
 const DIAS_PRESTAMO = 14, MAX_RENOVACIONES = 2, MULTA_POR_DIA = 1000, TAM_PAGINA = 12;
@@ -763,10 +762,6 @@ function actualizarContadorReservas() {
   if (!c) return;
   c.hidden = !n;
   c.textContent = n > 99 ? "99+" : String(n);
-}
-function reservasConocidas(itemId) {
-  return reservasLocales().filter((r) => r.item_id === itemId)
-    .sort((a, b) => String(a.fecha_reserva).localeCompare(String(b.fecha_reserva)));
 }
 const refrescarDatos = () => cargarDatos().catch(() => datos);
 const nombreUsuario = (id) => datos.usuarios.get(id)?.nombre || id;
@@ -1015,7 +1010,7 @@ const VISTAS = {
     ayuda: ["Cada préstamo dura <b>14 días</b>. No se presta a un usuario con <b>multas pendientes</b>.", "<b>Renovar</b> amplía el plazo 14 días más (máximo 2 veces). No se puede si el préstamo está vencido o si alguien reservó el libro.",
       `<b>Devolver</b> registra que el libro volvió. Si está atrasado se genera una multa de ${fmtCOP(MULTA_POR_DIA)} por cada día.`], cargar: () => cargarPrestamos(true) },
   reservas: { titulo: "Reservas", sub: "Filas de espera para libros agotados", icono: "reserva", resumen: "Apartar libros agotados; el primero de la fila recibe el siguiente ejemplar.",
-    ayuda: ["Solo se reservan libros <b>agotados</b>. Si hay ejemplares, préstelo directamente.", "El tablero y la fila de cada libro muestran a <b>todas</b> las personas en orden, con su nombre, aunque la reserva se haya hecho en otro equipo.",
+    ayuda: ["Solo se reservan libros <b>agotados</b>. Si hay ejemplares, préstelo directamente.", "El tablero y la fila de cada libro muestran a <b>todas</b> las personas en orden, con su nombre.",
       "Cuando se devuelve un ejemplar, queda guardado para la primera persona de la fila. Al prestárselo, su reserva se cierra sola."], cargar: () => cargarReservas() },
   multas: { titulo: "Multas", sub: "Cobros por retrasos, daños o pérdidas", icono: "multa", resumen: "Ver y registrar multas por retraso, daño o pérdida.",
     ayuda: [`Las multas por retraso se crean solas al registrar la devolución: ${fmtCOP(MULTA_POR_DIA)} por día.`, "Use el formulario para multas por otros motivos (daños, pérdidas). El valor va de $1.000 a $500.000, en múltiplos de $1.000. Solo se puede registrar una multa manual si el usuario ha tenido al menos un préstamo.",
@@ -1385,11 +1380,17 @@ document.addEventListener("keydown", (e) => {
 async function verLibro(id) {
   abrirModal("Libro", cargando("Abriendo el libro…"), "", { ancho: true });
   let l;
-  try { l = await api("GET", `/items/${enc(id)}`); }
-  catch (e) { $("modal-cuerpo").innerHTML = errorBloque(e); return; }
+  let l, reservasFila = [];
+  try {
+    l = await api("GET", `/items/${enc(id)}`);
+    if (l.reservas_pendientes) {
+      try { reservasFila = (await api("GET", `/items/${enc(id)}/reservas`)).reservas || []; }
+      catch { reservasFila = []; }
+    }
+  } catch (e) { $("modal-cuerpo").innerHTML = errorBloque(e); return; }
   datos.libros.set(l.id, { ...datos.libros.get(l.id), ...l });
   $("modal-extra").innerHTML = fuenteBadge(l._fuente);
-  const espera = l.reservas_pendientes || 0;
+  const espera = reservasFila.length || l.reservas_pendientes || 0;
   let consejo;
   if (l.disponibles > 0 && !espera) consejo = `Hay ${plural(l.disponibles, "ejemplar disponible", "ejemplares disponibles")}: se puede prestar ahora.`;
   else if (l.disponibles > 0) consejo = `Hay un ejemplar guardado para ${espera === 1 ? "la persona que lo reservó" : `las ${espera} personas en la fila`}. Solo se le puede prestar a quien sigue en la fila.`;
@@ -1398,7 +1399,7 @@ async function verLibro(id) {
   $("modal-cuerpo").innerHTML = `<div class="detalle-libro">${portada(l, "grande")}<div class="info">
       <h3>${esc(l.titulo)}</h3><div class="autor">${esc(l.autor)}</div><div>${estadoLibro(l)}</div>
       <div class="kv"><div><b>${fmtNum(l.ejemplares)}</b><span>Ejemplares</span></div><div><b>${fmtNum(l.disponibles)}</b><span>En estante</span></div><div><b>${fmtNum(l.prestados)}</b><span>Prestados</span></div></div>
-      <div class="aviso info" style="margin-bottom:12px">${icono("info")}<div>${consejo}${espera ? `<div class="tenue" style="margin-top:4px">${resumenNombresFila(l)}</div>` : ""}</div></div>
+      <div class="aviso info" style="margin-bottom:12px">${icono("info")}<div>${consejo}${espera ? `<div class="tenue" style="margin-top:4px">${resumenNombresFila(l, reservasFila)}</div>` : ""}</div></div>
       ${l.descripcion ? `<p class="descripcion">${esc(l.descripcion)}</p>` : ""}
       <dl class="datos">${ficha.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}
         <dt class="solo-tecnico">Código</dt><dd class="solo-tecnico mono">${esc(l.id)}</dd><dt class="solo-tecnico">Registrado</dt><dd class="solo-tecnico">${fmtFecha(l.creado_en, { hora: true })}</dd></dl>
@@ -1568,12 +1569,13 @@ async function verUsuario(id, pestana = "prestamos") {
     try { haPrestado = ((await api("GET", `/usuarios/${enc(u.id)}/prestamos`)).prestamos || []).length > 0; }
     catch { haPrestado = true; }
   }
-  const reservas = reservasLocales().filter((r) => r.usuario_id === u.id);
+  let reservasUsuario = [];
+  try { reservasUsuario = await reservasDeUsuario(u.id); } catch { reservasUsuario = []; }
   $("modal-cuerpo").innerHTML = `<div style="display:flex;gap:16px;align-items:center">${avatar(u, 64)}
       <div><h3 style="font-size:1.45rem">${esc(u.nombre)}</h3><div class="tenue">${esc(u.email)}${u.programa ? " · " + esc(u.programa) : ""} ${codigo(u.id)}</div><div class="tenue">Registrado ${haceCuanto(u.creado_en)}</div></div></div>
     <div class="kv"><div><b>${u.prestamos_activos ?? 0} de ${u.max_prestamos ?? 3}</b><span>Libros prestados</span></div>
       <div><b style="color:${u.saldo_multas ? "var(--rojo)" : "var(--verde)"}">${u.saldo_multas ? fmtCOP(u.saldo_multas) : "Al día"}</b><span>Multas pendientes</span></div>
-      <div><b>${reservas.length}</b><span title="Hechas desde este equipo">Reservas</span></div></div>
+      <div><b>${reservasUsuario.length}</b><span>Reservas</span></div></div>
     ${conMultas ? `<div class="aviso" style="margin-bottom:12px">${icono("alerta")}<div>Tiene multas pendientes por ${fmtCOP(u.saldo_multas)}. Debe saldarlas antes de llevarse otro libro.</div></div>` : ""}
     ${lleno && !conMultas ? `<div class="aviso" style="margin-bottom:12px">${icono("info")}<div>Tiene el máximo de libros prestados. Para llevarse otro debe devolver uno.</div></div>` : ""}
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
@@ -1799,15 +1801,21 @@ async function verPrestamo(id) {
 
 // ── RESERVAS ───────────────────────────────────────────────────────
 // GET /items/{id}/reservas devuelve la fila completa (orden Redis/GSI3 y nombres).
-const reservasLocales = () => { try { return JSON.parse(localStorage.getItem(CLAVE_RESERVAS) || "[]"); } catch { return []; } };
-const guardarReservas = (l) => localStorage.setItem(CLAVE_RESERVAS, JSON.stringify(l));
 const estadoReservas = { libro: null };
 let selRUsuario = null, selRLibro = null, selFila = null;
 function resumenNombresFila(l, reservas) {
-  const espera = (reservas && reservas.length) || l.reservas_pendientes || 0;
+  const lista = reservas || [];
+  const espera = lista.length || l.reservas_pendientes || 0;
   if (!espera) return "Nadie está en la fila.";
-  if (!reservas || !reservas.length) return espera === 1 ? "Hay 1 persona en la fila." : `Hay ${fmtNum(espera)} personas en la fila.`;
-  return `En la fila: ${reservas.map((r) => esc(r.nombre || nombreUsuario(r.usuario_id))).join(", ")}.`;
+  if (!lista.length) return espera === 1 ? "Hay 1 persona en la fila." : `Hay ${fmtNum(espera)} personas en la fila.`;
+  return `En la fila: ${lista.map((r, i) => `${r.posicion || i + 1}. ${esc(r.nombre || nombreUsuario(r.usuario_id))}`).join(", ")}.`;
+}
+async function reservasDeUsuario(usuarioId) {
+  const listas = await Promise.all(librosConFila().map(async (libro) => {
+    try { return (await api("GET", `/items/${enc(libro.id)}/reservas`)).reservas || []; }
+    catch { return []; }
+  }));
+  return listas.flat().filter((r) => r.usuario_id === usuarioId);
 }
 async function cargarReservas() {
   await refrescarDatos();
@@ -1831,7 +1839,6 @@ async function crearReserva(usuario_id, item_id, boton) {
   return conCarga(boton, async () => {
     try {
       const r = await api("POST", "/reservas", { usuario_id, item_id });
-      guardarReservas([...reservasLocales().filter((x) => x.id !== r.id), r]);
       toast("exito", "Reserva registrada", `<b>${esc(nombreUsuario(r.usuario_id))}</b> quedó ${r.posicion === 1 ? "<b>de primera</b>" : `en el puesto <b>${r.posicion ?? "?"}</b>`} de la fila de «${esc(r.titulo)}».`);
       await refrescarDatos();
       if (vistaActual === "reservas") { await pintarTableroFilas(); selFila.poner(datos.libros.get(r.item_id)); verFila(r.item_id); }
@@ -1848,20 +1855,21 @@ $("form-reserva").onsubmit = async (e) => {
 };
 // DELETE /reservas/{id}
 async function cancelarReserva(id, boton) {
-  const r = reservasLocales().find((x) => x.id === id);
-  const texto = r ? `¿Cancelar la reserva de <b>${esc(nombreUsuario(r.usuario_id))}</b> para <b>«${esc(r.titulo)}»</b>? Saldrá de la fila de espera.` : "¿Cancelar esta reserva? La persona saldrá de la fila de espera.";
+  const nombre = boton?.dataset?.nombre, titulo = boton?.dataset?.titulo;
+  const texto = nombre && titulo
+    ? `¿Cancelar la reserva de <b>${esc(nombre)}</b> para <b>«${esc(titulo)}»</b>? Saldrá de la fila de espera.`
+    : "¿Cancelar esta reserva? La persona saldrá de la fila de espera.";
   if (!await confirmar("Cancelar reserva", texto, "Cancelar reserva")) return;
   await conCarga(boton, async () => {
     try {
       await api("DELETE", `/reservas/${enc(id)}`);
-      guardarReservas(reservasLocales().filter((x) => x.id !== id));
-      toast("exito", "Reserva cancelada", r ? `${esc(nombreUsuario(r.usuario_id))} salió de la fila de «${esc(r.titulo)}».` : "");
+      toast("exito", "Reserva cancelada", nombre && titulo ? `${esc(nombre)} salió de la fila de «${esc(titulo)}».` : "");
       await refrescarDatos();
       await pintarTableroFilas();
       if (selFila?.valor()) verFila(selFila.valor().id);
       if (vistaActual === "panel") cargarPanel();
     } catch (e) {
-      if (e.status === 404) { guardarReservas(reservasLocales().filter((x) => x.id !== id)); await pintarTableroFilas(); }
+      if (e.status === 404) await pintarTableroFilas();
       errorToast(e, "No se pudo cancelar");
     }
   });
@@ -1871,7 +1879,7 @@ function filaReserva(r, turno) {
   return `<div class="fila-cola">${turno ? `<span class="turno" title="Puesto en la fila">${turno}</span>` : avatar(u)}
     <div style="flex:1;min-width:0"><b>${esc(u.nombre)}</b> <span class="tenue" style="display:inline">· «${esc(r.titulo)}»</span>
       <span class="tenue">Reservó ${haceCuanto(r.fecha_reserva)}${!turno && r.posicion ? ` · entró en el puesto ${r.posicion}` : ""} ${codigo(r.id)}</span></div>
-    <button class="boton peligro peq" data-cancelar="${esc(r.id)}" title="Sacar a ${esc(u.nombre)} de la fila">${icono("cerrar")}<span class="ocultar-movil">Cancelar</span></button></div>`;
+    <button class="boton peligro peq" data-cancelar="${esc(r.id)}" data-nombre="${esc(u.nombre)}" data-titulo="${esc(r.titulo || "")}" title="Sacar a ${esc(u.nombre)} de la fila">${icono("cerrar")}<span class="ocultar-movil">Cancelar</span></button></div>`;
 }
 const enlazarCancelar = (cont) => cont.querySelectorAll("[data-cancelar]").forEach((b) => b.onclick = () => cancelarReserva(b.dataset.cancelar, b));
 async function pintarTableroFilas() {
