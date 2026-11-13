@@ -1,8 +1,9 @@
 """
 reservas.py — Reservas de libros sin stock (rutas /reservas)
 ────────────────────────────────────────────────────────────
-  POST   /reservas        Reservar un libro agotado   TransactWriteItems + RPUSH
-  DELETE /reservas/{id}   Cancelar la reserva         TransactWriteItems + LREM
+  POST   /reservas              Reservar un libro agotado   TransactWriteItems + RPUSH
+  GET    /items/{id}/reservas   Fila de espera del libro    LRANGE + Query GSI3
+  DELETE /reservas/{id}         Cancelar la reserva         TransactWriteItems + LREM
 
 Ítem en la tabla:
   PK=USER#<usuarioId>  SK=RESV#<itemId>             (una reserva por usuario y libro)
@@ -63,6 +64,54 @@ def cola(item_id: str, pendientes: int) -> list[str]:
     logger.info("Cola de %s reconstruida desde DynamoDB (%d reservas)", item_id, len(ids))
     cache.cola_reemplazar(item_id, ids)
     return ids
+
+
+def listar_de_item(item_id: str) -> RespuestaApi:
+    """
+    GET /items/{id}/reservas. Orden de la fila: LRANGE en Redis; si Redis no
+    responde o la List no coincide con reservas_pendientes, se usa el GSI3
+    de DynamoDB (y se reconstruye la List). Los nombres salen del perfil.
+    """
+    libro = libros.obtener_de_dynamodb(item_id)
+    if not libro:
+        raise ErrorApi(404, f"Ítem '{item_id}' no encontrado")
+
+    pendientes = int(libro.get("reservas_pendientes", 0))
+    en_redis = cache.cola_leer(item_id)
+    filas = query_completa(
+        IndexName="GSI3",
+        KeyConditionExpression=Key("GSI3PK").eq(f"RESERVAS#ITEM#{item_id}"),
+    )
+    por_id = {f["id"]: f for f in filas}
+
+    if en_redis is not None and len(en_redis) == pendientes:
+        ids = en_redis
+        fuente = "redis"
+    else:
+        ids = [f["id"] for f in filas]
+        fuente = "dynamodb"
+        cache.cola_reemplazar(item_id, ids)
+
+    lista: list[dict[str, Any]] = []
+    for reserva_id in ids:
+        reserva = por_id.get(reserva_id)
+        if not reserva:
+            continue
+        usuario = usuarios.obtener_de_dynamodb(reserva["usuario_id"])
+        lista.append({
+            "id": reserva["id"],
+            "usuario_id": reserva["usuario_id"],
+            "nombre": usuario["nombre"] if usuario else reserva["usuario_id"],
+            "posicion": len(lista) + 1,
+            "fecha_reserva": reserva["fecha_reserva"],
+        })
+    return respuesta(200, {
+        "item_id": item_id,
+        "titulo": libro["titulo"],
+        "total": len(lista),
+        "reservas": lista,
+        "_fuente": fuente,
+    })
 
 
 def crear(event: dict[str, Any]) -> RespuestaApi:

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Recorre los 27 endpoints del API y muestra el efecto en Redis.
+# Recorre los 28 endpoints del API y muestra el efecto en Redis.
 # Ejecutar desde la carpeta del proyecto, en el host (usa `docker compose exec redis`).
 # Uso:  ./scripts/probar_api.sh <api-id>
 #   o:  ./scripts/probar_api.sh <url-base>   (por ejemplo el ApiUrl del deploy)
@@ -83,6 +83,9 @@ RESERVA=$(curl -s -X POST "${JSON[@]}" -d '{"usuario_id":"beto","item_id":"cien-
 echo "$RESERVA"
 RESERVA_ID=$(echo "$RESERVA" | campo id)
 redis LRANGE cola:item#cien-anios 0 -1
+
+paso "28. GET /items/cien-anios/reservas (fila con nombres y posición)"
+curl -s "$BASE/items/cien-anios/reservas"; echo
 
 paso "   Con reservas pendientes ya no se puede renovar → 409"
 curl -s -X PUT "$BASE/prestamos/$PRESTAMO_ID/renovar"; echo

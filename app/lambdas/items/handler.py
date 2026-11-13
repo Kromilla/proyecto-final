@@ -10,13 +10,13 @@ que /items/buscar es el recurso fijo "buscar" y no el {id} "buscar", así que
 el orden en que se declaran las rutas no importa: es un diccionario.
 
   Libros      POST /items · GET /items · GET /items/buscar · GET /items/populares
-              GET /items/{id} · PUT /items/{id} · DELETE /items/{id}
+              GET /items/{id} · GET /items/{id}/reservas · PUT /items/{id} · DELETE /items/{id}
   Categorías  GET /categorias · GET /categorias/{nombre}/items
   Usuarios    POST /usuarios · GET /usuarios · GET /usuarios/{id} · PUT /usuarios/{id}
               DELETE /usuarios/{id} · GET /usuarios/{id}/prestamos · GET /usuarios/{id}/multas
   Préstamos   POST /prestamos · GET /prestamos · GET /prestamos/vencidos · GET /prestamos/{id}
               PUT /prestamos/{id}/devolver · PUT /prestamos/{id}/renovar
-  Reservas    POST /reservas · DELETE /reservas/{id}
+  Reservas    POST /reservas · GET /items/{id}/reservas · DELETE /reservas/{id}
   Multas      POST /multas
   Caché       GET /cache/stats
   (GET /health vive en su propia Lambda: lambdas/health)
@@ -65,6 +65,7 @@ RUTAS: dict[tuple[str, str], Ruta] = {
     ("GET",    "/items/buscar"):              lambda _p, _e, q: libros.buscar(q),
     ("GET",    "/items/populares"):           lambda _p, _e, q: libros.populares(q),
     ("GET",    "/items/{id}"):                lambda p, _e, _q: libros.obtener(p),
+    ("GET",    "/items/{id}/reservas"):       lambda p, _e, _q: reservas.listar_de_item(p),
     ("PUT",    "/items/{id}"):                lambda p, ev, _q: libros.actualizar(p, ev),
     ("DELETE", "/items/{id}"):                lambda p, _e, _q: libros.eliminar(p),
     # Categorías

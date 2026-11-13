@@ -16,7 +16,7 @@ contenedores Docker: un emulador de AWS (LocalStack o MiniStack) con
 de desarrollo **CDK** con Python 3.11. El dominio es la biblioteca de la
 universidad: **libros** (los *ítems* del API `/items`), **categorías**,
 **usuarios**, **préstamos**, **reservas** y **multas**, todos en **una sola
-tabla DynamoDB**, con **27 endpoints**.
+tabla DynamoDB**, con **28 endpoints**.
 
 | Stack obligatorio | Dónde está |
 |---|---|
@@ -24,7 +24,7 @@ tabla DynamoDB**, con **27 endpoints**.
 | Redis con patrones justificados | `app/lambdas/items/cache.py` (Cache-Aside, Write-Through, TTL, invalidación; String, Set, List, Sorted Set y Hash) |
 | Python (Lambdas y CDK) | `app/lambdas/`, `app/infra/` |
 | CDK (infraestructura como código) | `app/infra/app.py`, `app/infra/stack.py` |
-| API Gateway + Lambda | `RestApi` con 27 endpoints (ver sección 4) |
+| API Gateway + Lambda | `RestApi` con 28 endpoints (ver sección 4) |
 | Docker Compose con emulador | `docker-compose.yml`, `Dockerfile` |
 | Tests con moto + fakeredis | `app/tests/` |
 
@@ -207,7 +207,7 @@ opción A no responde):
 http://localhost:4566/restapis/<api-id>/prod/_user_request_/health
 ```
 
-### Endpoints (27)
+### Endpoints (28)
 
 | # | Método | Ruta | Descripción | Patrón / operación | Respuestas |
 |---|---|---|---|---|---|
@@ -236,8 +236,9 @@ http://localhost:4566/restapis/<api-id>/prod/_user_request_/health
 | 23 | `PUT` | `/prestamos/{id}/renovar` | +14 días; máx. 2 veces; no vencido; sin reservas del libro | Transacción + **invalidación** | `200` · `404` · `409` |
 | 24 | `POST` | `/reservas` | Reservar un libro sin ejemplares libres; responde la `posicion` en la fila | Transacción + `RPUSH` (List) | `201` · `400` · `404` · `409` |
 | 25 | `DELETE` | `/reservas/{id}` | Cancelar la reserva | Transacción + `LREM` | `200` · `404` |
-| 26 | `POST` | `/multas` | Registrar una multa manual (el usuario debe haber tenido un préstamo) | Transacción + **invalidación** | `201` · `400` · `404` · `409` |
-| 27 | `GET` | `/cache/stats` | Hits, misses, *hit ratio* y claves en Redis | Hash + `SCAN` | `200` · `503` |
+| 26 | `GET` | `/items/{id}/reservas` | Fila de espera del libro (id, usuario, nombre, posición y fecha) | `LRANGE` + Query GSI3 | `200` · `404` |
+| 27 | `POST` | `/multas` | Registrar una multa manual (el usuario debe haber tenido un préstamo) | Transacción + **invalidación** | `201` · `400` · `404` · `409` |
+| 28 | `GET` | `/cache/stats` | Hits, misses, *hit ratio* y claves en Redis | Hash + `SCAN` | `200` · `503` |
 
 Los endpoints 1, 2, 6 y 8 son los que pide la presentación; el resto amplía
 el dominio en la misma tabla. Todas las peticiones con body (`POST`, `PUT`)
@@ -246,9 +247,10 @@ Postman basta con elegir **Body → raw → JSON**.
 
 > Rutas fijas y rutas con `{id}`: `/items/buscar`, `/items/populares` y
 > `/prestamos/vencidos` son recursos propios en API Gateway, distintos de
-> `/items/{id}` y `/prestamos/{id}`. La Lambda enruta por el recurso que
-> llega en el evento, así que `GET /items/buscar` nunca se interpreta como el
-> libro con id `buscar`.
+> `/items/{id}` y `/prestamos/{id}`. `GET /items/{id}/reservas` es un recurso
+> hijo de `/items/{id}`. La Lambda enruta por el recurso que llega en el
+> evento, así que `GET /items/buscar` nunca se interpreta como el libro con
+> id `buscar`.
 
 Campos:
 
@@ -330,8 +332,10 @@ curl $API/prestamos/<prestamo-id>
 # 23. Renovar (+14 días)
 curl -X PUT $API/prestamos/<prestamo-id>/renovar
 
-# 24. Reservar el libro agotado (responde "posicion" en la fila) y 25. cancelar
+# 24. Reservar el libro agotado (responde "posicion" en la fila),
+# 26. ver la fila con nombres y 25. cancelar
 curl -X POST -H "$JSON" -d '{"usuario_id":"beto","item_id":"cien-anios"}' $API/reservas
+curl $API/items/cien-anios/reservas
 curl -X DELETE $API/reservas/<reserva-id>
 
 # 16. Préstamos del usuario
@@ -340,11 +344,11 @@ curl "$API/usuarios/ana/prestamos?estado=activo"
 # 22. Devolver (si está vencido genera una multa automática)
 curl -X PUT $API/prestamos/<prestamo-id>/devolver
 
-# 26. Registrar una multa y 17. ver las multas del usuario
+# 27. Registrar una multa y 17. ver las multas del usuario
 curl -X POST -H "$JSON" -d '{"usuario_id":"ana","monto":5000,"motivo":"Libro dañado"}' $API/multas
 curl $API/usuarios/ana/multas
 
-# 27. Estadísticas del caché
+# 28. Estadísticas del caché
 curl $API/cache/stats
 
 # Errores de validación → 400
@@ -357,7 +361,7 @@ curl -X DELETE $API/usuarios/beto
 ```
 
 El script `scripts/probar_api.sh <api-id>` (ejecutado en el host, desde la
-carpeta del proyecto) recorre los 27 endpoints en orden, muestra la cola de
+carpeta del proyecto) recorre los 28 endpoints en orden, muestra la cola de
 reservas y las claves de Redis con `redis-cli`, y fuerza un *miss* para
 mostrar el cambio de `"_fuente": "dynamodb"` a `"cache"`.
 
@@ -443,16 +447,16 @@ Los tests usan **moto** (DynamoDB en memoria, con el mismo esquema `PK`/`SK`
 no escriba en el emulador real, ofrece el helper `llamar()` que arma el
 evento de API Gateway y el fixture `viajar_en_el_tiempo` que cambia la fecha
 "de hoy" para probar vencimientos, renovaciones y multas. Hay tests para
-**cada uno de los 27 endpoints**:
+**cada uno de los 28 endpoints**:
 
 | Archivo | Qué cubre |
 |---|---|
 | `test_health.py` | `GET /health`: 200 con todo arriba; 503 si Redis o la tabla fallan |
-| `test_items.py` | `POST`, `GET`, `PUT`, `DELETE /items…`, `GET /items` (GSI2, GSI1, paginación), `GET /items/populares`; Write-Through con TTL; Cache-Aside miss → `"dynamodb"`, hit → `"cache"` (sin tocar DynamoDB); expiración; invalidación; validaciones 400; 404, 405, 409; modo degradado; error de DynamoDB → 500; enrutador con 26 rutas |
+| `test_items.py` | `POST`, `GET`, `PUT`, `DELETE /items…`, `GET /items` (GSI2, GSI1, paginación), `GET /items/populares`; Write-Through con TTL; Cache-Aside miss → `"dynamodb"`, hit → `"cache"` (sin tocar DynamoDB); expiración; invalidación; validaciones 400; 404, 405, 409; modo degradado; error de DynamoDB → 500; enrutador con 27 rutas |
 | `test_categorias.py` | `GET /items/buscar` (sin tildes ni mayúsculas, Cache-Aside, Set índice, invalidación al crear/editar/borrar libros), `GET /categorias` (Set con TTL, contadores, invalidación), `GET /categorias/{nombre}/items` (GSI3, paginación, URL encoding); `/items/buscar` no se confunde con `/items/{id}` |
 | `test_usuarios.py` | `POST`, `GET`, `PUT`, `DELETE /usuarios…`, `GET /usuarios` (GSI2, paginación) y `GET /usuarios/{id}/prestamos` |
 | `test_prestamos.py` | `POST /prestamos` (transacción, sin ejemplares, máximo, multas pendientes, 404), `GET /prestamos?estado=`, `GET /prestamos/vencidos`, `GET /prestamos/{id}`, `PUT …/devolver`, `PUT …/renovar` (+14 días, máximo 2, vencido, con reservas) |
-| `test_reservas.py` | `POST /reservas` (List en orden, posición, reconstrucción de la cola), `DELETE /reservas/{id}` (`LREM`), solo el primero de la fila puede prestar, Redis caído |
+| `test_reservas.py` | `POST /reservas` (List en orden, posición, reconstrucción de la cola), `GET /items/{id}/reservas` (nombres, posiciones, orden Redis o GSI3 si Redis cae), `DELETE /reservas/{id}` (`LREM`), solo el primero de la fila puede prestar, Redis caído |
 | `test_multas.py` | `POST /multas` (requiere historial de préstamos, 409 si no hay), `GET /usuarios/{id}/multas` (Cache-Aside, saldo), multa automática por devolución tardía |
 | `test_cache.py` | `cache.py` (get/set/delete, TTL 300 por defecto, rankings, stats, Redis caído) y `GET /cache/stats` |
 

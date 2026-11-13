@@ -142,3 +142,49 @@ def test_reservas_con_redis_caido_usan_dynamodb(agotado, monkeypatch):
     agotado("PUT", "/prestamos/{id}/devolver", id=agotado.prestamo_ana)
     assert agotado("POST", "/prestamos", body={"usuario_id": "caro", "item_id": "cien"})[0] == 409
     assert agotado("POST", "/prestamos", body={"usuario_id": "beto", "item_id": "cien"})[0] == 201
+
+
+# ── GET /items/{id}/reservas ──────────────────────────────────────────
+
+def test_listar_fila_devuelve_nombres_y_posiciones(agotado):
+    _, r1 = reservar(agotado, "beto")
+    _, r2 = reservar(agotado, "caro")
+    status, cuerpo = agotado("GET", "/items/{id}/reservas", id="cien")
+    assert status == 200 and cuerpo["_fuente"] == "redis"
+    assert cuerpo["item_id"] == "cien" and cuerpo["titulo"] == "Cien años de soledad"
+    assert cuerpo["total"] == 2
+    assert [r["usuario_id"] for r in cuerpo["reservas"]] == ["beto", "caro"]
+    assert [r["nombre"] for r in cuerpo["reservas"]] == ["Beto", "Caro"]
+    assert [r["posicion"] for r in cuerpo["reservas"]] == [1, 2]
+    assert cuerpo["reservas"][0]["id"] == r1["id"]
+    assert cuerpo["reservas"][1]["id"] == r2["id"]
+    assert cuerpo["reservas"][0]["fecha_reserva"] and cuerpo["reservas"][1]["fecha_reserva"]
+
+
+def test_listar_fila_vacia(agotado):
+    status, cuerpo = agotado("GET", "/items/{id}/reservas", id="cien")
+    assert status == 200 and cuerpo["total"] == 0 and cuerpo["reservas"] == []
+
+
+def test_listar_fila_libro_inexistente_404(api):
+    assert api("GET", "/items/{id}/reservas", id="no-existe")[0] == 404
+
+
+def test_listar_fila_con_redis_caido_usa_dynamodb(agotado, monkeypatch):
+    _, r1 = reservar(agotado, "beto")
+    _, r2 = reservar(agotado, "caro")
+    import redis as redis_lib
+
+    class RedisCaido:
+        def __getattr__(self, _nombre):
+            def falla(*_a, **_k):
+                raise redis_lib.ConnectionError("sin conexión")
+            return falla
+
+    monkeypatch.setattr(cache, "_get_client", lambda: RedisCaido())
+    status, cuerpo = agotado("GET", "/items/{id}/reservas", id="cien")
+    assert status == 200 and cuerpo["_fuente"] == "dynamodb"
+    assert [r["id"] for r in cuerpo["reservas"]] == [r1["id"], r2["id"]]
+    assert [r["nombre"] for r in cuerpo["reservas"]] == ["Beto", "Caro"]
+    assert [r["posicion"] for r in cuerpo["reservas"]] == [1, 2]
+

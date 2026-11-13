@@ -266,7 +266,9 @@ class ProyectoFinalStack(Stack):
         rutas(r_items, "POST", "GET")
         rutas(r_items.add_resource("buscar"), "GET")                 # /items/buscar
         rutas(r_items.add_resource("populares"), "GET")              # /items/populares
-        rutas(r_items.add_resource("{id}"), "GET", "PUT", "DELETE")  # /items/{id}
+        r_item_id = r_items.add_resource("{id}")                     # /items/{id}
+        rutas(r_item_id, "GET", "PUT", "DELETE")
+        rutas(r_item_id.add_resource("reservas"), "GET")             # /items/{id}/reservas
 
         # Categorías
         r_categorias = api.root.add_resource("categorias")           # /categorias

@@ -569,7 +569,7 @@ body.modo-tecnico span.mono.solo-tecnico{display:inline!important}
         </div>
         <div class="tarjeta" style="margin-top:18px">
           <h3><svg class="i"><use href="#i-reserva"/></svg>Libros con fila de espera</h3>
-          <p class="tenue" style="display:block;margin:-6px 0 14px">Aparecen todos los títulos que tienen personas esperando, vengan de este equipo o de otro. Los nombres se muestran cuando la reserva se hizo aquí.</p>
+          <p class="tenue" style="display:block;margin:-6px 0 14px">Aparecen todos los títulos que tienen personas esperando, con los nombres en el orden de la fila.</p>
           <div id="tablero-filas"></div>
         </div>
       </section>
@@ -1012,7 +1012,7 @@ const VISTAS = {
     ayuda: ["Cada préstamo dura <b>14 días</b>. No se presta a un usuario con <b>multas pendientes</b>.", "<b>Renovar</b> amplía el plazo 14 días más (máximo 2 veces). No se puede si el préstamo está vencido o si alguien reservó el libro.",
       `<b>Devolver</b> registra que el libro volvió. Si está atrasado se genera una multa de ${fmtCOP(MULTA_POR_DIA)} por cada día.`], cargar: () => cargarPrestamos(true) },
   reservas: { titulo: "Reservas", sub: "Filas de espera para libros agotados", icono: "reserva", resumen: "Apartar libros agotados; el primero de la fila recibe el siguiente ejemplar.",
-    ayuda: ["Solo se reservan libros <b>agotados</b>. Si hay ejemplares, préstelo directamente.", "El tablero lista todos los libros que tienen fila, aunque la reserva se haya hecho en otro equipo. El nombre aparece si se reservó desde este navegador.",
+    ayuda: ["Solo se reservan libros <b>agotados</b>. Si hay ejemplares, préstelo directamente.", "El tablero y la fila de cada libro muestran a <b>todas</b> las personas en orden, con su nombre, aunque la reserva se haya hecho en otro equipo.",
       "Cuando se devuelve un ejemplar, queda guardado para la primera persona de la fila. Al prestárselo, su reserva se cierra sola."], cargar: () => cargarReservas() },
   multas: { titulo: "Multas", sub: "Cobros por retrasos, daños o pérdidas", icono: "multa", resumen: "Ver y registrar multas por retraso, daño o pérdida.",
     ayuda: [`Las multas por retraso se crean solas al registrar la devolución: ${fmtCOP(MULTA_POR_DIA)} por día.`, "Use el formulario para multas por otros motivos (daños, pérdidas). Solo se puede registrar una multa manual si el usuario ha tenido al menos un préstamo.",
@@ -1795,20 +1795,16 @@ async function verPrestamo(id) {
 }
 
 // ── RESERVAS ───────────────────────────────────────────────────────
-// El API no lista todas las reservas. El tablero sale del catálogo (reservas_pendientes).
-// Los nombres se recuerdan si la reserva se creó en este navegador.
+// GET /items/{id}/reservas devuelve la fila completa (orden Redis/GSI3 y nombres).
 const reservasLocales = () => { try { return JSON.parse(localStorage.getItem(CLAVE_RESERVAS) || "[]"); } catch { return []; } };
 const guardarReservas = (l) => localStorage.setItem(CLAVE_RESERVAS, JSON.stringify(l));
 const estadoReservas = { libro: null };
 let selRUsuario = null, selRLibro = null, selFila = null;
-function resumenNombresFila(l) {
-  const espera = l.reservas_pendientes || 0;
-  const conocidas = reservasConocidas(l.id);
+function resumenNombresFila(l, reservas) {
+  const espera = (reservas && reservas.length) || l.reservas_pendientes || 0;
   if (!espera) return "Nadie está en la fila.";
-  if (!conocidas.length) return "Los nombres no están en este equipo: la reserva se hizo en otro navegador.";
-  const nombres = conocidas.map((r) => esc(nombreUsuario(r.usuario_id))).join(", ");
-  const faltan = espera - conocidas.length;
-  return faltan > 0 ? `En este equipo: ${nombres}. ${faltan === 1 ? "Falta 1 persona" : `Faltan ${fmtNum(faltan)} personas`} de otro equipo.` : `En la fila: ${nombres}.`;
+  if (!reservas || !reservas.length) return espera === 1 ? "Hay 1 persona en la fila." : `Hay ${fmtNum(espera)} personas en la fila.`;
+  return `En la fila: ${reservas.map((r) => esc(r.nombre || nombreUsuario(r.usuario_id))).join(", ")}.`;
 }
 async function cargarReservas() {
   await refrescarDatos();
@@ -1818,7 +1814,7 @@ async function cargarReservas() {
       bloquear: (l) => l.disponibles > 0 && !l.reservas_pendientes ? "Disponible: préstelo directamente" : null });
     selFila = crearSelector($("sel-fila-libro"), "libro", { etiqueta: "Elija un libro", placeholder: "Escriba el título…", alElegir: (l) => verFila(l.id), alLimpiar: () => ($("fila-resultado").innerHTML = "") });
   } else { selRUsuario.refrescar(); selRLibro.refrescar(); }
-  pintarTableroFilas();
+  await pintarTableroFilas();
   if (estadoReservas.libro) {
     const id = estadoReservas.libro;
     estadoReservas.libro = null;
@@ -1835,7 +1831,7 @@ async function crearReserva(usuario_id, item_id, boton) {
       guardarReservas([...reservasLocales().filter((x) => x.id !== r.id), r]);
       toast("exito", "Reserva registrada", `<b>${esc(nombreUsuario(r.usuario_id))}</b> quedó ${r.posicion === 1 ? "<b>de primera</b>" : `en el puesto <b>${r.posicion ?? "?"}</b>`} de la fila de «${esc(r.titulo)}».`);
       await refrescarDatos();
-      if (vistaActual === "reservas") { pintarTableroFilas(); selFila.poner(datos.libros.get(r.item_id)); verFila(r.item_id); }
+      if (vistaActual === "reservas") { await pintarTableroFilas(); selFila.poner(datos.libros.get(r.item_id)); verFila(r.item_id); }
       if (vistaActual === "panel") cargarPanel();
       return true;
     } catch (e) { errorToast(e, "No se pudo reservar"); return false; }
@@ -1858,27 +1854,32 @@ async function cancelarReserva(id, boton) {
       guardarReservas(reservasLocales().filter((x) => x.id !== id));
       toast("exito", "Reserva cancelada", r ? `${esc(nombreUsuario(r.usuario_id))} salió de la fila de «${esc(r.titulo)}».` : "");
       await refrescarDatos();
-      pintarTableroFilas(); if (r && selFila?.valor()?.id === r.item_id) verFila(r.item_id);
+      await pintarTableroFilas();
+      if (selFila?.valor()) verFila(selFila.valor().id);
       if (vistaActual === "panel") cargarPanel();
     } catch (e) {
-      if (e.status === 404) { guardarReservas(reservasLocales().filter((x) => x.id !== id)); pintarTableroFilas(); }
+      if (e.status === 404) { guardarReservas(reservasLocales().filter((x) => x.id !== id)); await pintarTableroFilas(); }
       errorToast(e, "No se pudo cancelar");
     }
   });
 }
 function filaReserva(r, turno) {
-  const u = datos.usuarios.get(r.usuario_id) || { id: r.usuario_id, nombre: r.usuario_id };
+  const u = datos.usuarios.get(r.usuario_id) || { id: r.usuario_id, nombre: r.nombre || r.usuario_id };
   return `<div class="fila-cola">${turno ? `<span class="turno" title="Puesto en la fila">${turno}</span>` : avatar(u)}
     <div style="flex:1;min-width:0"><b>${esc(u.nombre)}</b> <span class="tenue" style="display:inline">· «${esc(r.titulo)}»</span>
       <span class="tenue">Reservó ${haceCuanto(r.fecha_reserva)}${!turno && r.posicion ? ` · entró en el puesto ${r.posicion}` : ""} ${codigo(r.id)}</span></div>
     <button class="boton peligro peq" data-cancelar="${esc(r.id)}" title="Sacar a ${esc(u.nombre)} de la fila">${icono("cerrar")}<span class="ocultar-movil">Cancelar</span></button></div>`;
 }
 const enlazarCancelar = (cont) => cont.querySelectorAll("[data-cancelar]").forEach((b) => b.onclick = () => cancelarReserva(b.dataset.cancelar, b));
-function pintarTableroFilas() {
+async function pintarTableroFilas() {
   const filas = librosConFila(), cont = $("tablero-filas");
   if (!cont) return;
-  cont.innerHTML = filas.length ? `<div class="tablero-filas">${filas.map((l) => `<button type="button" class="fila-libro" data-id="${esc(l.id)}">${miniPortada(l)}
-      <span class="txt"><b>${esc(l.titulo)}</b><span class="tenue">${esc(l.autor || "")}</span><span class="tenue">${resumenNombresFila(l)}</span></span>
+  const detalles = await Promise.all(filas.map(async (l) => {
+    try { return { l, reservas: (await api("GET", `/items/${enc(l.id)}/reservas`)).reservas || [] }; }
+    catch { return { l, reservas: [] }; }
+  }));
+  cont.innerHTML = filas.length ? `<div class="tablero-filas">${detalles.map(({ l, reservas }) => `<button type="button" class="fila-libro" data-id="${esc(l.id)}">${miniPortada(l)}
+      <span class="txt"><b>${esc(l.titulo)}</b><span class="tenue">${esc(l.autor || "")}</span><span class="tenue">${resumenNombresFila(l, reservas)}</span></span>
       ${estadoLibro(l, true)}</button>`).join("")}</div>`
     : vacio("reserva", "Nadie está esperando un libro", "Cuando un título se agote, reserve desde el formulario de arriba o desde la ficha del libro.");
   cont.querySelectorAll(".fila-libro").forEach((b) => b.onclick = () => {
@@ -1886,24 +1887,25 @@ function pintarTableroFilas() {
     if (l && selFila) { selFila.poner(l); verFila(l.id); $("fila-resultado")?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }
   });
 }
-// Fila de un libro: GET /items/{id} dice cuántos esperan; los nombres son los de las reservas conocidas.
+// Fila de un libro: GET /items/{id}/reservas trae el orden y los nombres.
 async function verFila(itemId) {
   const cont = $("fila-resultado"); cont.innerHTML = cargando();
   try {
-    const l = await api("GET", `/items/${enc(itemId)}`);
+    const [l, fila] = await Promise.all([
+      api("GET", `/items/${enc(itemId)}`),
+      api("GET", `/items/${enc(itemId)}/reservas`),
+    ]);
     datos.libros.set(l.id, { ...(datos.libros.get(l.id) || {}), ...l });
     actualizarContadorReservas();
-    const espera = l.reservas_pendientes || 0;
-    const conocidas = reservasConocidas(l.id).slice(0, espera || undefined);
-    const completas = conocidas.length === espera && espera > 0;
-    const desconocidas = Math.max(0, espera - conocidas.length);
-    const huecos = Array.from({ length: desconocidas }, () => `<div class="fila-cola fantasma"><span class="turno" title="Puesto desconocido en este equipo">?</span><div style="flex:1"><b>Reserva desde otro equipo</b><span class="tenue">El nombre no está en este navegador</span></div></div>`).join("");
+    const lista = fila.reservas || [];
+    const espera = fila.total ?? lista.length;
+    const filasHtml = lista.map((r) => filaReserva({ ...r, titulo: fila.titulo || l.titulo, fecha_reserva: r.fecha_reserva }, r.posicion)).join("");
+    const pistaTecnica = `<div class="solo-tecnico" style="margin-top:10px">${fuenteBadge(fila._fuente)} <span class="mono">LRANGE cola:item#${esc(l.id)} 0 -1</span></div>`;
     cont.innerHTML = `<div style="margin:6px 0 12px">${estadoLibro(l)} ${fuenteBadge(l._fuente)}</div>
       ${!espera ? vacio("ok", "Nadie está esperando este libro", l.disponibles > 0 ? "Hay ejemplares disponibles: se puede prestar directamente." : "Está agotado: puede ser el primero en reservarlo.")
         : `<p style="margin:0 0 10px">${espera === 1 ? "Hay <b>1 persona</b> esperando" : `Hay <b>${espera} personas</b> esperando`} este libro.${l.disponibles > 0 ? " Ya hay un ejemplar guardado para la primera." : ""}</p>
-        ${conocidas.map((r, i) => filaReserva(r, completas ? i + 1 : 0)).join("")}
-        ${huecos}
-        ${desconocidas ? `<div class="aviso info">${icono("info")}<div>El orden completo solo se muestra cuando todas las reservas se hicieron en este equipo.<span class="solo-tecnico mono" style="display:block">LRANGE cola:item#${esc(l.id)} 0 -1</span></div></div>` : ""}`}`;
+        ${filasHtml}
+        ${pistaTecnica}`}`;
     enlazarCancelar(cont);
   } catch (e) { cont.innerHTML = errorBloque(e); }
 }
@@ -2029,7 +2031,7 @@ async function cargarSistema() {
       <dt>Filas</dt><dd>List <span class="mono">cola:item#&lt;id&gt;</span> (RPUSH / LREM) con copia en DynamoDB (GSI3).</dd></dl></div>
     <div class="tarjeta"><h3>${icono("reserva")}Herramientas técnicas</h3>
       <div class="campo"><label for="sis-reserva">Cancelar una reserva por su código</label><div style="display:flex;gap:8px"><input id="sis-reserva" class="mono" placeholder="Ej. 3f9a1c2b7d4e"><button class="boton peligro" id="sis-cancelar">Cancelar</button></div>
-      <small>Para reservas hechas desde otro equipo (el código lo devuelve POST /reservas).</small></div></div>
+      <small>También puede cancelar desde la fila de espera, con el nombre de cada persona. El código lo devuelve POST /reservas y GET /items/{id}/reservas.</small></div></div>
   </div>`;
   $("sis-tecnico").onchange = (e) => { ponerModoTecnico(e.target.checked); cargarSistema(); };
   $("sis-cancelar").onclick = (e) => { const id = $("sis-reserva").value.trim(); if (id) cancelarReserva(id, e.currentTarget); };

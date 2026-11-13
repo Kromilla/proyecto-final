@@ -46,8 +46,9 @@ Se definieron **antes** de diseñar la tabla. Ninguno usa `Scan`.
 | AP24 | Renovar un préstamo | `PUT /prestamos/{id}/renovar` | `TransactWriteItems` (`ConditionCheck` libro + `UpdateItem` préstamo) + `DEL` |
 | AP25 | Reservar un libro agotado | `POST /reservas` | `TransactWriteItems` (libro, `ConditionCheck` usuario, reserva) + `RPUSH` |
 | AP26 | Cancelar una reserva | `DELETE /reservas/{id}` | `Query` GSI1 + `TransactWriteItems` + `LREM` |
-| AP27 | Registrar una multa | `POST /multas` | `TransactWriteItems` (multa + saldo del usuario) + `DEL` |
-| AP28 | Estado del caché | `GET /cache/stats` | `HGETALL`, `DBSIZE`, `SCAN` |
+| AP27 | Fila de espera de un libro | `GET /items/{id}/reservas` | Redis `LRANGE` → `Query` GSI3 + perfiles; si Redis no responde, solo GSI3 |
+| AP28 | Registrar una multa | `POST /multas` | `TransactWriteItems` (multa + saldo del usuario) + `DEL` |
+| AP29 | Estado del caché | `GET /cache/stats` | `HGETALL`, `DBSIZE`, `SCAN` |
 
 ## 3. Modelo de la tabla (Single Table Design)
 
@@ -191,7 +192,7 @@ Cliente (curl / Postman / frontend) ──HTTP :4566──▶ API Gateway (emula
                      ┌───────────────────────────────┴───────────┐
                      ▼                                           ▼
      Lambda ItemsHandler (Python 3.11)                 Lambda HealthHandler
-     26 rutas: libros · categorías · usuarios ·        (Python 3.11)
+     27 rutas: libros · categorías · usuarios ·        (Python 3.11)
      préstamos · reservas · multas · caché
         │                     │                          │          │
   redis-py :6379      boto3 (AWS_ENDPOINT_URL)         PING   DescribeTable
@@ -204,7 +205,9 @@ Una sola Lambda atiende las rutas del dominio: comparte los clientes de Redis
 Gateway (`handler.py`). Como API Gateway ya distingue el recurso fijo
 `/items/buscar` del recurso `/items/{id}` (y `/prestamos/vencidos` de
 `/prestamos/{id}`), el enrutador es un diccionario `(método, recurso)` y el
-orden de declaración no importa. El código está separado por entidad
+orden de declaración no importa. `GET /items/{id}/reservas` es un recurso
+hijo de `/items/{id}`: devuelve la fila ordenada (LRANGE, o GSI3 si Redis
+no responde) con el nombre de cada persona. El código está separado por entidad
 (`libros.py`, `categorias.py`, `usuarios.py`, `prestamos.py`, `reservas.py`,
 `multas.py`). La infraestructura se define con **AWS CDK en Python**
 (`app/infra/stack.py`).
