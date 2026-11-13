@@ -1379,7 +1379,6 @@ document.addEventListener("keydown", (e) => {
 // GET /items/{id}
 async function verLibro(id) {
   abrirModal("Libro", cargando("Abriendo el libro…"), "", { ancho: true });
-  let l;
   let l, reservasFila = [];
   try {
     l = await api("GET", `/items/${enc(id)}`);
