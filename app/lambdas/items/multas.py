@@ -19,13 +19,27 @@ import cache
 import comun
 import usuarios
 from comun import (
-    TABLE_NAME, ErrorApi, Item, RespuestaApi, entero, es_cancelada, leer_json,
+    TABLE_NAME, ErrorApi, Item, RespuestaApi, es_cancelada, leer_json,
     nuevo_id, publico, respuesta, tabla, texto, validar_id,
 )
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
-MONTO_MAXIMO: int = 10_000_000
+MONTO_MINIMO: int = 1_000
+MONTO_MAXIMO: int = 500_000
+MONTO_MULTIPLO: int = 100
+MENSAJE_MONTO: str = (
+    "El campo 'monto' debe ser un entero entre 1000 y 500000, en múltiplos de 100"
+)
+
+
+def validar_monto_manual(valor: Any) -> int:
+    """Valida el monto de una multa manual: $1.000–$500.000, múltiplos de $100."""
+    if isinstance(valor, bool) or not isinstance(valor, int):
+        raise ErrorApi(400, MENSAJE_MONTO)
+    if not MONTO_MINIMO <= valor <= MONTO_MAXIMO or valor % MONTO_MULTIPLO != 0:
+        raise ErrorApi(400, MENSAJE_MONTO)
+    return valor
 
 
 def multa_por_dia() -> int:
@@ -71,7 +85,7 @@ def crear(event: dict[str, Any]) -> RespuestaApi:
     if "monto" not in datos:
         raise ErrorApi(400, "Falta el campo obligatorio 'monto'")
     usuario_id = validar_id(datos["usuario_id"], "usuario_id")
-    monto = entero(datos["monto"], "monto", 1, MONTO_MAXIMO)
+    monto = validar_monto_manual(datos["monto"])
     motivo = texto(datos, "motivo", obligatorio=True) or ""
     prestamo_id = None
     prestamo = None
