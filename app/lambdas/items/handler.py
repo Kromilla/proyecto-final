@@ -17,7 +17,7 @@ el orden en que se declaran las rutas no importa: es un diccionario.
   Préstamos   POST /prestamos · GET /prestamos · GET /prestamos/vencidos · GET /prestamos/{id}
               PUT /prestamos/{id}/devolver · PUT /prestamos/{id}/renovar
   Reservas    POST /reservas · GET /items/{id}/reservas · DELETE /reservas/{id}
-  Multas      POST /multas
+  Multas      POST /multas · POST /multas/{id}/pagar
   Caché       GET /cache/stats
   (GET /health vive en su propia Lambda: lambdas/health)
 
@@ -91,6 +91,7 @@ RUTAS: dict[tuple[str, str], Ruta] = {
     ("DELETE", "/reservas/{id}"):             lambda p, _e, _q: reservas.cancelar(p),
     # Multas
     ("POST",   "/multas"):                    lambda _p, ev, _q: multas.crear(ev),
+    ("POST",   "/multas/{id}/pagar"):         lambda p, _e, _q: multas.pagar(p),
     # Caché
     ("GET",    "/cache/stats"):               lambda _p, _e, _q: _cache_stats(),
 }

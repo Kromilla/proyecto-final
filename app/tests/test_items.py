@@ -330,10 +330,10 @@ def test_error_dynamodb_retorna_500(api, monkeypatch):
     assert api("GET", "/items/{id}", id="x")[0] == 500
 
 
-def test_enrutador_tiene_27_rutas_mas_health():
-    """27 rutas en ItemsHandler + GET /health en su propia Lambda = 28 endpoints."""
+def test_enrutador_tiene_28_rutas_mas_health():
+    """28 rutas en ItemsHandler + GET /health en su propia Lambda = 29 endpoints."""
     import handler
-    assert len(handler.RUTAS) == 27
+    assert len(handler.RUTAS) == 28
 
 
 

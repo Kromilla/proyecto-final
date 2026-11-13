@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Recorre los 28 endpoints del API y muestra el efecto en Redis.
+# Recorre los 29 endpoints del API y muestra el efecto en Redis.
 # Ejecutar desde la carpeta del proyecto, en el host (usa `docker compose exec redis`).
 # Uso:  ./scripts/probar_api.sh <api-id>
 #   o:  ./scripts/probar_api.sh <url-base>   (por ejemplo el ApiUrl del deploy)
@@ -100,15 +100,21 @@ curl -s "$BASE/usuarios/ana/prestamos"; echo
 paso "22. PUT /prestamos/$PRESTAMO_ID/devolver"
 curl -s -X PUT "$BASE/prestamos/$PRESTAMO_ID/devolver"; echo
 
-paso "26. POST /multas y 17. GET /usuarios/ana/multas"
-curl -s -X POST "${JSON[@]}" -d '{"usuario_id":"ana","monto":5000,"motivo":"Libro dañado"}' "$BASE/multas"; echo
+paso "27. POST /multas y 17. GET /usuarios/ana/multas"
+MULTA=$(curl -s -X POST "${JSON[@]}" -d '{"usuario_id":"ana","monto":5000,"motivo":"Libro dañado"}' "$BASE/multas")
+echo "$MULTA"
+curl -s "$BASE/usuarios/ana/multas"; echo
+
+paso "28. POST /multas/{id}/pagar"
+MULTA_ID=$(echo "$MULTA" | campo id)
+curl -s -X POST "$BASE/multas/$MULTA_ID/pagar"; echo
 curl -s "$BASE/usuarios/ana/multas"; echo
 
 paso "5. GET /items/populares (Sorted Sets)"
 curl -s "$BASE/items/populares?por=consultas&n=5"; echo
 curl -s "$BASE/items/populares?por=prestamos&n=5"; echo
 
-paso "27. GET /cache/stats"
+paso "29. GET /cache/stats"
 curl -s "$BASE/cache/stats"; echo
 
 paso "   Errores: JSON inválido → 400, libro inexistente → 404"

@@ -16,7 +16,7 @@ contenedores Docker: un emulador de AWS (LocalStack o MiniStack) con
 de desarrollo **CDK** con Python 3.11. El dominio es la biblioteca de la
 universidad: **libros** (los *ítems* del API `/items`), **categorías**,
 **usuarios**, **préstamos**, **reservas** y **multas**, todos en **una sola
-tabla DynamoDB**, con **28 endpoints**.
+tabla DynamoDB**, con **29 endpoints**.
 
 | Stack obligatorio | Dónde está |
 |---|---|
@@ -24,7 +24,7 @@ tabla DynamoDB**, con **28 endpoints**.
 | Redis con patrones justificados | `app/lambdas/items/cache.py` (Cache-Aside, Write-Through, TTL, invalidación; String, Set, List, Sorted Set y Hash) |
 | Python (Lambdas y CDK) | `app/lambdas/`, `app/infra/` |
 | CDK (infraestructura como código) | `app/infra/app.py`, `app/infra/stack.py` |
-| API Gateway + Lambda | `RestApi` con 28 endpoints (ver sección 4) |
+| API Gateway + Lambda | `RestApi` con 29 endpoints (ver sección 4) |
 | Docker Compose con emulador | `docker-compose.yml`, `Dockerfile` |
 | Tests con moto + fakeredis | `app/tests/` |
 
@@ -207,7 +207,7 @@ opción A no responde):
 http://localhost:4566/restapis/<api-id>/prod/_user_request_/health
 ```
 
-### Endpoints (28)
+### Endpoints (29)
 
 | # | Método | Ruta | Descripción | Patrón / operación | Respuestas |
 |---|---|---|---|---|---|
@@ -237,8 +237,9 @@ http://localhost:4566/restapis/<api-id>/prod/_user_request_/health
 | 24 | `POST` | `/reservas` | Reservar un libro sin ejemplares libres; responde la `posicion` en la fila | Transacción + `RPUSH` (List) | `201` · `400` · `404` · `409` |
 | 25 | `DELETE` | `/reservas/{id}` | Cancelar la reserva | Transacción + `LREM` | `200` · `404` |
 | 26 | `GET` | `/items/{id}/reservas` | Fila de espera del libro (id, usuario, nombre, posición y fecha) | Query GSI3; `LRANGE` solo si coincide; si no, se reconstruye | `200` · `404` |
-| 27 | `POST` | `/multas` | Registrar una multa manual (el usuario debe haber tenido un préstamo) | Transacción + **invalidación** | `201` · `400` · `404` · `409` |
-| 28 | `GET` | `/cache/stats` | Hits, misses, *hit ratio* y claves en Redis | Hash + `SCAN` | `200` · `503` |
+| 27 | `POST` | `/multas` | Registrar una multa manual (el usuario debe haber tenido un préstamo); `Idempotency-Key` opcional | Transacción + **invalidación** | `201` · `400` · `404` · `409` |
+| 28 | `POST` | `/multas/{id}/pagar` | Saldar una multa (estado `PAGADA` y `fecha_pago`); si ya estaba pagada, no descuenta de nuevo | Transacción + **invalidación** | `200` · `404` · `409` |
+| 29 | `GET` | `/cache/stats` | Hits, misses, *hit ratio* y claves en Redis | Hash + `SCAN` | `200` · `503` |
 
 Los endpoints 1, 2, 6 y 8 son los que pide la presentación; el resto amplía
 el dominio en la misma tabla. Todas las peticiones con body (`POST`, `PUT`)
@@ -261,11 +262,13 @@ Campos:
   `disponible`.
 - **Usuario**: `nombre` y `email` (obligatorios), `id` y `programa`
   (opcionales). Máximo 3 préstamos activos. No puede llevarse un libro si
-  tiene `saldo_multas` pendiente (409). La respuesta incluye
+  tiene `saldo_multas` pendiente (409). Puede saldarlas con
+  `POST /multas/{id}/pagar`. La respuesta incluye
   `prestamos_activos` y `saldo_multas`.
 - **Préstamo**: `usuario_id` e `item_id`. Plazo 14 días; cada renovación suma
   14 días a la fecha límite. `POST /prestamos` responde `409` si el usuario
-  tiene multas pendientes.
+  tiene multas pendientes o ya tiene un préstamo activo de ese libro.
+  Un reintento con el mismo header `Idempotency-Key` devuelve el préstamo original.
 - **Reserva**: `usuario_id` e `item_id`. Solo para libros sin ejemplares
   libres; cuando se devuelve un ejemplar, solo los primeros de la fila pueden
   llevárselo y el préstamo consume su reserva.
@@ -276,6 +279,11 @@ Campos:
   usuario ha tenido al menos un préstamo (activo, vencido o devuelto); si
   no, responde `409`. Las devoluciones tardías generan multas automáticas
   de 1000 por día y no exigen este paso (el préstamo ya existe).
+  `POST /multas/{id}/pagar` marca la multa como `PAGADA`, guarda `fecha_pago` y
+  descuenta el saldo; si ya estaba pagada, responde `200` sin descontar de nuevo.
+  No se admite una segunda multa manual del mismo préstamo y motivo (409).
+  Un reintento de `POST /multas` con el mismo `Idempotency-Key` devuelve la multa original.
+  Las fechas y los días de retraso se calculan en hora de Colombia (UTC-5).
 
 ### Ejemplos con curl (opción B)
 
@@ -349,7 +357,10 @@ curl -X PUT $API/prestamos/<prestamo-id>/devolver
 curl -X POST -H "$JSON" -d '{"usuario_id":"ana","monto":5000,"motivo":"Libro dañado"}' $API/multas
 curl $API/usuarios/ana/multas
 
-# 28. Estadísticas del caché
+# 28. Pagar una multa (luego el usuario puede volver a pedir un préstamo)
+curl -X POST $API/multas/<multa-id>/pagar
+
+# 29. Estadísticas del caché
 curl $API/cache/stats
 
 # Errores de validación → 400
@@ -362,7 +373,7 @@ curl -X DELETE $API/usuarios/beto
 ```
 
 El script `scripts/probar_api.sh <api-id>` (ejecutado en el host, desde la
-carpeta del proyecto) recorre los 28 endpoints en orden, muestra la cola de
+carpeta del proyecto) recorre los 29 endpoints en orden, muestra la cola de
 reservas y las claves de Redis con `redis-cli`, y fuerza un *miss* para
 mostrar el cambio de `"_fuente": "dynamodb"` a `"cache"`.
 
@@ -448,17 +459,17 @@ Los tests usan **moto** (DynamoDB en memoria, con el mismo esquema `PK`/`SK`
 no escriba en el emulador real, ofrece el helper `llamar()` que arma el
 evento de API Gateway y el fixture `viajar_en_el_tiempo` que cambia la fecha
 "de hoy" para probar vencimientos, renovaciones y multas. Hay tests para
-**cada uno de los 28 endpoints**:
+**cada uno de los 29 endpoints**:
 
 | Archivo | Qué cubre |
 |---|---|
 | `test_health.py` | `GET /health`: 200 con todo arriba; 503 si Redis o la tabla fallan |
-| `test_items.py` | `POST`, `GET`, `PUT`, `DELETE /items…`, `GET /items` (GSI2, GSI1, paginación), `GET /items/populares`; Write-Through con TTL; Cache-Aside miss → `"dynamodb"`, hit → `"cache"` (sin tocar DynamoDB); expiración; invalidación; validaciones 400; 404, 405, 409; modo degradado; error de DynamoDB → 500; enrutador con 27 rutas |
+| `test_items.py` | `POST`, `GET`, `PUT`, `DELETE /items…`, `GET /items` (GSI2, GSI1, paginación), `GET /items/populares`; Write-Through con TTL; Cache-Aside miss → `"dynamodb"`, hit → `"cache"` (sin tocar DynamoDB); expiración; invalidación; validaciones 400; 404, 405, 409; modo degradado; error de DynamoDB → 500; enrutador con 28 rutas |
 | `test_categorias.py` | `GET /items/buscar` (sin tildes ni mayúsculas, Cache-Aside, Set índice, invalidación al crear/editar/borrar libros), `GET /categorias` (Set con TTL, contadores, invalidación), `GET /categorias/{nombre}/items` (GSI3, paginación, URL encoding); `/items/buscar` no se confunde con `/items/{id}` |
 | `test_usuarios.py` | `POST`, `GET`, `PUT`, `DELETE /usuarios…`, `GET /usuarios` (GSI2, paginación) y `GET /usuarios/{id}/prestamos` |
-| `test_prestamos.py` | `POST /prestamos` (transacción, sin ejemplares, máximo, multas pendientes, 404), `GET /prestamos?estado=`, `GET /prestamos/vencidos`, `GET /prestamos/{id}`, `PUT …/devolver`, `PUT …/renovar` (+14 días, máximo 2, vencido, con reservas) |
+| `test_prestamos.py` | `POST /prestamos` (transacción, sin ejemplares, máximo, multas pendientes, un solo préstamo activo del mismo libro, `Idempotency-Key`, 404), fechas en hora de Colombia, `GET /prestamos?estado=`, `GET /prestamos/vencidos`, `GET /prestamos/{id}`, `PUT …/devolver`, `PUT …/renovar` (+14 días, máximo 2, vencido, con reservas) |
 | `test_reservas.py` | `POST /reservas` (List en orden, posición, reconstrucción de la cola, Redis desfasado), `GET /items/{id}/reservas` (nombres, posiciones, GSI3 como fuente de verdad, reconstrucción si Redis no coincide), `DELETE /reservas/{id}` (`LREM`), solo el primero de la fila puede prestar, Redis caído |
-| `test_multas.py` | `POST /multas` (requiere historial de préstamos, 409 si no hay; monto entre 1000 y 500000, múltiplos de 1000), `GET /usuarios/{id}/multas` (Cache-Aside, saldo), multa automática por devolución tardía |
+| `test_multas.py` | `POST /multas` (requiere historial de préstamos, 409 si no hay; monto entre 1000 y 500000, múltiplos de 1000; `Idempotency-Key`; no duplica préstamo+motivo), `POST /multas/{id}/pagar` (saldar, idempotente, habilita un nuevo préstamo), `GET /usuarios/{id}/multas` (Cache-Aside, saldo), multa automática por devolución tardía |
 | `test_cache.py` | `cache.py` (get/set/delete, TTL 300 por defecto, rankings, stats, Redis caído) y `GET /cache/stats` |
 
 ---

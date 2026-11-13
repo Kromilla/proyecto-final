@@ -251,7 +251,7 @@ class ProyectoFinalStack(Stack):
             default_cors_preflight_options=apigw.CorsOptions(
                 allow_origins=apigw.Cors.ALL_ORIGINS,
                 allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-                allow_headers=["Content-Type"],
+                allow_headers=["Content-Type", "Idempotency-Key"],
             ),
         )
 
@@ -298,7 +298,9 @@ class ProyectoFinalStack(Stack):
         rutas(r_reservas.add_resource("{id}"), "DELETE")             # /reservas/{id}
 
         # Multas
-        rutas(api.root.add_resource("multas"), "POST")               # /multas
+        r_multas = api.root.add_resource("multas")                   # /multas
+        rutas(r_multas, "POST")
+        rutas(r_multas.add_resource("{id}").add_resource("pagar"), "POST")  # /multas/{id}/pagar
 
         # Caché
         rutas(api.root.add_resource("cache").add_resource("stats"), "GET")  # /cache/stats

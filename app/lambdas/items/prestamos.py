@@ -81,8 +81,17 @@ def _buscar_o_404(prestamo_id: str) -> Item:
 
 # ── POST /prestamos ───────────────────────────────────────────────────
 
+def clave_prestamo_activo(usuario_id: str, item_id: str) -> dict[str, str]:
+    """Ítem que impide un segundo préstamo activo del mismo libro al mismo usuario."""
+    return {"PK": f"USER#{usuario_id}", "SK": f"LOANACTIVO#{item_id}"}
+
+
 def crear(event: dict[str, Any]) -> RespuestaApi:
     """POST /prestamos. Baja el stock y, si hay fila, solo entrega a los primeros N."""
+    clave_idem, repetida = comun.respuesta_idempotente(event, "prestamos")
+    if repetida:
+        return repetida
+
     datos = leer_json(event)
     for campo in ("usuario_id", "item_id"):
         if campo not in datos:
@@ -103,6 +112,9 @@ def crear(event: dict[str, Any]) -> RespuestaApi:
         fila = reservas.cola(item_id, pendientes)
         if not reserva or reserva["id"] not in fila[:disponibles]:
             raise ErrorApi(409, f"'{item_id}' está reservado para otros usuarios en la fila")
+
+    if tabla().get_item(Key=clave_prestamo_activo(usuario_id, item_id)).get("Item"):
+        raise ErrorApi(409, "El usuario ya tiene un préstamo activo de este libro")
 
     momento = comun.ahora().replace(microsecond=0)
     prestamo_id = nuevo_id()
@@ -160,11 +172,25 @@ def crear(event: dict[str, Any]) -> RespuestaApi:
             "Key": {"PK": reserva["PK"], "SK": reserva["SK"]},
             "ConditionExpression": "attribute_exists(PK)",
         }})
+    operaciones.append({"Put": {
+        "TableName": TABLE_NAME,
+        "Item": {**clave_prestamo_activo(usuario_id, item_id),
+                 "tipo": "LOANACTIVO", "prestamo_id": prestamo_id, "item_id": item_id},
+        "ConditionExpression": "attribute_not_exists(PK)",
+    }})
+    if clave_idem:
+        operaciones.append(comun.put_idempotencia("prestamos", clave_idem, 201, publico(prestamo)))
     try:
         comun.cliente().transact_write_items(TransactItems=operaciones)
     except ClientError as e:
         if not es_cancelada(e):
             raise
+        if clave_idem:
+            repetida = comun.recuperar_idempotencia("prestamos", clave_idem)
+            if repetida:
+                return repetida
+        if tabla().get_item(Key=clave_prestamo_activo(usuario_id, item_id)).get("Item"):
+            raise ErrorApi(409, "El usuario ya tiene un préstamo activo de este libro")
         _explicar_rechazo(usuario_id, item_id)
     logger.info("DynamoDB PRESTAMO %s usuario=%s libro=%s", prestamo_id, usuario_id, item_id)
 
@@ -280,6 +306,10 @@ def devolver(prestamo_id: str) -> RespuestaApi:
             "UpdateExpression": "SET disponibles = disponibles + :uno, prestados = prestados - :uno",
             "ConditionExpression": "attribute_exists(PK)",
             "ExpressionAttributeValues": {":uno": 1},
+        }},
+        {"Delete": {
+            "TableName": TABLE_NAME,
+            "Key": clave_prestamo_activo(usuario_id, item_id),
         }},
     ]
     if multa:

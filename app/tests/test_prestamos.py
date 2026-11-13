@@ -239,3 +239,76 @@ def test_renovar_devuelto_409_e_inexistente_404(datos):
     datos("PUT", "/prestamos/{id}/devolver", id=prestamo["id"])
     assert datos("PUT", "/prestamos/{id}/renovar", id=prestamo["id"])[0] == 409
     assert datos("PUT", "/prestamos/{id}/renovar", id="nope")[0] == 404
+
+
+# ── Idempotencia y un solo préstamo activo por libro ──────────────────
+
+def test_prestar_con_misma_idempotency_key_no_duplica(datos, tabla_dynamodb):
+    datos("POST", "/items", body={"id": "l-idem", "titulo": "T", "autor": "A", "ejemplares": 2})
+    headers = {"Content-Type": "application/json", "Idempotency-Key": "prestamo-ana-1"}
+    s1, p1 = datos("POST", "/prestamos", body={"usuario_id": "ana", "item_id": "l-idem"},
+                   headers=headers)
+    s2, p2 = datos("POST", "/prestamos", body={"usuario_id": "ana", "item_id": "l-idem"},
+                   headers=headers)
+    assert s1 == s2 == 201 and p1["id"] == p2["id"]
+    loans = tabla_dynamodb.query(KeyConditionExpression="PK = :pk AND begins_with(SK, :sk)",
+                                 ExpressionAttributeValues={":pk": "USER#ana", ":sk": "LOAN#"})["Items"]
+    assert len(loans) == 1 and loans[0]["item_id"] == "l-idem"
+    perfil = tabla_dynamodb.get_item(Key={"PK": "USER#ana", "SK": "PROFILE"})["Item"]
+    assert perfil["prestamos_activos"] == 1
+
+
+def test_no_segundo_prestamo_activo_del_mismo_libro(api):
+    api("POST", "/items", body={"id": "l-doble", "titulo": "T", "autor": "A", "ejemplares": 2})
+    api("POST", "/usuarios", body={"id": "ana", "nombre": "Ana", "email": "ana@unimag.edu.co"})
+    assert api("POST", "/prestamos", body={"usuario_id": "ana", "item_id": "l-doble"})[0] == 201
+    status, cuerpo = api("POST", "/prestamos", body={"usuario_id": "ana", "item_id": "l-doble"})
+    assert status == 409 and "préstamo activo de este libro" in cuerpo["error"]
+    # Tras devolver sí puede volver a llevarse el mismo libro.
+    _, activo = api("GET", "/usuarios/{id}/prestamos", id="ana", query={"estado": "activo"})
+    api("PUT", "/prestamos/{id}/devolver", id=activo["prestamos"][0]["id"])
+    assert api("POST", "/prestamos", body={"usuario_id": "ana", "item_id": "l-doble"})[0] == 201
+
+
+# ── Fechas en hora de Colombia ────────────────────────────────────────
+
+def test_ahora_y_hoy_usan_hora_de_colombia():
+    import comun
+    from datetime import timedelta
+    assert comun.TZ_COLOMBIA.utcoffset(None) == timedelta(hours=-5)
+    ahora = comun.ahora()
+    assert ahora.utcoffset() == timedelta(hours=-5)
+    assert comun.hoy() == ahora.date()
+
+
+def test_fecha_limite_usa_el_dia_en_colombia(datos, monkeypatch):
+    """Si en UTC ya es el día siguiente pero en Colombia no, el plazo usa Colombia."""
+    import comun
+    from datetime import datetime, timezone
+    # 14 nov 2026 03:00 UTC = 13 nov 2026 22:00 en Colombia.
+    fijo = datetime(2026, 11, 14, 3, 0, 0, tzinfo=timezone.utc)
+
+    def ahora_fijo():
+        return fijo.astimezone(comun.TZ_COLOMBIA)
+    monkeypatch.setattr(comun, "ahora", ahora_fijo)
+    status, prestamo = prestar(datos)
+    assert status == 201
+    assert prestamo["fecha_prestamo"].startswith("2026-11-13T22:00:00")
+    assert prestamo["fecha_prestamo"].endswith("-05:00")
+    assert prestamo["fecha_limite"] == "2026-11-27"   # 13 + 14 días
+
+
+def test_dias_de_retraso_usan_hoy_en_colombia(datos, monkeypatch):
+    import comun
+    from datetime import datetime, date, timezone
+    fijo = datetime(2026, 11, 1, 3, 0, 0, tzinfo=timezone.utc)   # 31 oct 22:00 Colombia
+    monkeypatch.setattr(comun, "ahora", lambda: fijo.astimezone(comun.TZ_COLOMBIA))
+    _, prestamo = prestar(datos)
+    assert prestamo["fecha_limite"] == "2026-11-14"
+    # 15 nov 03:00 UTC = 14 nov 22:00 Colombia: todavía no hay retraso (vence ese día).
+    despues = datetime(2026, 11, 15, 3, 0, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(comun, "ahora", lambda: despues.astimezone(comun.TZ_COLOMBIA))
+    monkeypatch.setattr(comun, "hoy", lambda: date(2026, 11, 14))
+    status, cuerpo = datos("PUT", "/prestamos/{id}/devolver", id=prestamo["id"])
+    assert status == 200 and cuerpo["dias_retraso"] == 0 and cuerpo["multa"] is None
+

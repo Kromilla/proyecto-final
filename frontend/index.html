@@ -578,7 +578,7 @@ body.modo-tecnico span.mono.solo-tecnico{display:inline!important}
 
       <!-- MULTAS -->
       <section class="vista" id="v-multas">
-        <div class="explica"><svg class="i"><use href="#i-info"/></svg><div>Las multas por <b>retraso</b> se generan solas al registrar una devolución tardía: <b>$1.000 por cada día</b> de atraso. Aquí también puede registrar multas por otros motivos, como daños o pérdida, pero <b>solo si el usuario ha tenido al menos un préstamo</b>.</div></div>
+        <div class="explica"><svg class="i"><use href="#i-info"/></svg><div>Las multas por <b>retraso</b> se generan solas al registrar una devolución tardía: <b>$1.000 por cada día</b> de atraso. Aquí también puede registrar multas por otros motivos, como daños o pérdida, pero <b>solo si el usuario ha tenido al menos un préstamo</b>. Con el botón <b>Pagar</b> se salda una multa pendiente y el usuario puede volver a llevarse libros.</div></div>
         <div class="rejilla g2" style="align-items:start">
           <div class="tarjeta">
             <h3><svg class="i"><use href="#i-multa"/></svg>Registrar una multa</h3>
@@ -652,8 +652,8 @@ const colorUsuario = (id) => PALETA[(hash(id) + 3) % PALETA.length];
 const iniciales = (n) => String(n || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase();
 
 // ── Fechas para humanos ────────────────────────────────────────────
-// El servidor trabaja con fechas UTC (AAAA-MM-DD) para los plazos.
-const hoyUTC = () => new Date().toISOString().slice(0, 10);
+// El servidor trabaja con fechas de Colombia (America/Bogota, UTC-5).
+const hoyColombia = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
 const sumarDias = (iso, n) => new Date(Date.parse(iso + "T00:00:00Z") + n * DIA_MS).toISOString().slice(0, 10);
 const diasEntre = (desde, hasta) => Math.round((Date.parse(hasta + "T00:00:00Z") - Date.parse(desde + "T00:00:00Z")) / DIA_MS);
 function fmtFecha(s, { hora = false, larga = false } = {}) {
@@ -665,18 +665,21 @@ function fmtFecha(s, { hora = false, larga = false } = {}) {
   }
   const d = new Date(s);
   if (isNaN(d)) return esc(s);
-  return d.toLocaleString("es-CO", hora ? { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" } : { day: "numeric", month: "short", year: "numeric" });
+  const opts = hora
+    ? { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Bogota" }
+    : { day: "numeric", month: "short", year: "numeric", timeZone: "America/Bogota" };
+  return d.toLocaleString("es-CO", opts);
 }
 /** «vence en 3 días», «vence hoy», «vencido hace 2 días». */
 function plazo(fechaLimite) {
-  const d = diasEntre(hoyUTC(), fechaLimite);
+  const d = diasEntre(hoyColombia(), fechaLimite);
   if (d < 0) return { texto: `vencido hace ${plural(-d, "día", "días")}`, clase: "mal", dias: d };
   if (d === 0) return { texto: "vence hoy", clase: "aviso", dias: d };
   if (d === 1) return { texto: "vence mañana", clase: "aviso", dias: d };
   return { texto: `vence en ${d} días`, clase: d <= 3 ? "aviso" : "bien", dias: d };
 }
 function haceCuanto(iso) {
-  const d = diasEntre(String(iso).slice(0, 10), hoyUTC());
+  const d = diasEntre(String(iso).slice(0, 10), hoyColombia());
   return d <= 0 ? "hoy" : d === 1 ? "ayer" : `hace ${d} días`;
 }
 
@@ -774,7 +777,10 @@ function traducir(e) {
   const L = (id) => `«${esc(tituloLibro(id))}»`, U = (id) => `<b>${esc(nombreUsuario(id))}</b>`;
   const reglas = [
     [/El usuario ya tiene (\d+) préstamos activos/, (x) => `Este usuario ya tiene ${x[1]} préstamos activos, el máximo permitido. Debe devolver uno antes de llevarse otro.`],
-    [/tiene multas pendientes/, () => "Este usuario tiene multas pendientes. Debe saldarlas antes de llevarse un libro."],
+    [/tiene multas pendientes/, () => "Este usuario tiene multas pendientes. Debe saldarlas (botón Pagar en Multas) antes de llevarse un libro."],
+    [/préstamo activo de este libro/, () => "Este usuario ya tiene este libro prestado. Debe devolverlo antes de llevárselo de nuevo."],
+    [/Ya existe una multa de este préstamo con el mismo motivo/, () => "Ya hay una multa de este préstamo por el mismo motivo."],
+    [/Multa '.+?' no encontrada/, () => "No encontramos esa multa. Es posible que ya no exista."],
     [/no tiene préstamos; no se puede registrar una multa/, () => "Solo se puede registrar una multa a un usuario que haya tenido al menos un préstamo."],
     [/No hay ejemplares disponibles de '(.+?)'/, (x) => `No quedan ejemplares disponibles de ${L(x[1])}. Puede reservarlo para que le guarden el próximo que se devuelva.`],
     [/'(.+?)' está reservado para otros usuarios en la fila/, (x) => `${L(x[1])} está apartado para las personas que lo reservaron antes. Solo puede prestarse a quien sigue en la fila.`],
@@ -1013,7 +1019,7 @@ const VISTAS = {
     ayuda: ["Solo se reservan libros <b>agotados</b>. Si hay ejemplares, préstelo directamente.", "El tablero y la fila de cada libro muestran a <b>todas</b> las personas en orden, con su nombre.",
       "Cuando se devuelve un ejemplar, queda guardado para la primera persona de la fila. Al prestárselo, su reserva se cierra sola."], cargar: () => cargarReservas() },
   multas: { titulo: "Multas", sub: "Cobros por retrasos, daños o pérdidas", icono: "multa", resumen: "Ver y registrar multas por retraso, daño o pérdida.",
-    ayuda: [`Las multas por retraso se crean solas al registrar la devolución: ${fmtCOP(MULTA_POR_DIA)} por día.`, "Use el formulario para multas por otros motivos (daños, pérdidas). El valor va de $1.000 a $500.000, en múltiplos de $1.000. Solo se puede registrar una multa manual si el usuario ha tenido al menos un préstamo.",
+    ayuda: [`Las multas por retraso se crean solas al registrar la devolución: ${fmtCOP(MULTA_POR_DIA)} por día.`, "Use el formulario para multas por otros motivos (daños, pérdidas). El valor va de $1.000 a $500.000, en múltiplos de $1.000. Solo se puede registrar una multa manual si el usuario ha tenido al menos un préstamo.", "Con el botón <b>Pagar</b> se salda una multa pendiente. Cuando el saldo queda en cero, el usuario puede volver a llevarse libros.",
       "Consulte a un usuario para ver el detalle y su saldo pendiente."], cargar: () => cargarMultas() },
   sistema: { titulo: "Sistema", sub: "Conexión, estado del servidor y rendimiento", icono: "servidor", resumen: "Conexión con el servidor, estado de los servicios y datos técnicos.",
     acciones: () => `<button class="boton claro" onclick="cargarSistema()">${icono("recargar")}<span>Actualizar</span></button>`,
@@ -1142,7 +1148,7 @@ async function cargarPanel() {
   actualizarContadorVencidos(venc.length);
   pintarFilasInicio(librosConFila());
   // Hoy
-  const hoy = hoyUTC();
+  const hoy = hoyColombia();
   const pronto = act.filter((p) => { const d = diasEntre(hoy, p.fecha_limite); return d >= 0 && d <= 2; });
   const hoyPrestados = act.filter((p) => String(p.fecha_prestamo).slice(0, 10) === hoy).length;
   const espera = libros.reduce((s2, l) => s2 + (l.reservas_pendientes || 0), 0);
@@ -1575,7 +1581,7 @@ async function verUsuario(id, pestana = "prestamos") {
     <div class="kv"><div><b>${u.prestamos_activos ?? 0} de ${u.max_prestamos ?? 3}</b><span>Libros prestados</span></div>
       <div><b style="color:${u.saldo_multas ? "var(--rojo)" : "var(--verde)"}">${u.saldo_multas ? fmtCOP(u.saldo_multas) : "Al día"}</b><span>Multas pendientes</span></div>
       <div><b>${reservasUsuario.length}</b><span>Reservas</span></div></div>
-    ${conMultas ? `<div class="aviso" style="margin-bottom:12px">${icono("alerta")}<div>Tiene multas pendientes por ${fmtCOP(u.saldo_multas)}. Debe saldarlas antes de llevarse otro libro.</div></div>` : ""}
+    ${conMultas ? `<div class="aviso" style="margin-bottom:12px">${icono("alerta")}<div>Tiene multas pendientes por ${fmtCOP(u.saldo_multas)}. Debe saldarlas (pestaña Multas, botón Pagar) antes de llevarse otro libro.</div></div>` : ""}
     ${lleno && !conMultas ? `<div class="aviso" style="margin-bottom:12px">${icono("info")}<div>Tiene el máximo de libros prestados. Para llevarse otro debe devolver uno.</div></div>` : ""}
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
       <div class="pestanas" id="ficha-tabs" role="tablist"><button class="pestana" data-p="prestamos" role="tab">${icono("prestamo")}Préstamos</button><button class="pestana" data-p="multas" role="tab">${icono("multa")}Multas</button></div>
@@ -1611,8 +1617,10 @@ async function fichaPrestamos(uid) {
 }
 async function fichaMultas(uid) {
   const cont = $("ficha-contenido"); cont.innerHTML = cargando();
-  try { cont.innerHTML = tablaMultas(await api("GET", `/usuarios/${enc(uid)}/multas`)); }
-  catch (e) { cont.innerHTML = errorBloque(e); }
+  try {
+    cont.innerHTML = tablaMultas(await api("GET", `/usuarios/${enc(uid)}/multas`));
+    enlazarAccionesMulta(cont, () => verUsuario(uid, "multas"));
+  } catch (e) { cont.innerHTML = errorBloque(e); }
 }
 
 // ── PRÉSTAMOS ──────────────────────────────────────────────────────
@@ -1716,7 +1724,7 @@ async function asistentePrestamo(inicial = {}) {
       ponerPie(`<button class="boton claro" id="asis-atras">${icono("izq")}Atrás</button><span style="flex:1"></span><button class="boton claro" data-cerrar>Cancelar</button>`);
       $("asis-atras").onclick = () => { st.paso = 1; pintar(); };
     } else {
-      const vence = sumarDias(hoyUTC(), DIAS_PRESTAMO), l = st.libro;
+      const vence = sumarDias(hoyColombia(), DIAS_PRESTAMO), l = st.libro;
       $("modal-cuerpo").innerHTML = pasos() + `<div class="resumen">${portada(l)}<div style="flex:1">
           <h3 style="font-size:1.3rem">${esc(l.titulo)}</h3><div class="autor" style="font-style:italic;color:var(--suave)">${esc(l.autor)}</div>
           <dl class="datos" style="margin-top:14px"><dt>Para</dt><dd><b>${esc(st.usuario.nombre)}</b> · ${esc(st.usuario.email)}</dd>
@@ -1966,11 +1974,30 @@ function tablaMultas(d) {
   const lista = d.multas || [];
   const cab = `<div class="kv" style="grid-template-columns:1fr 1fr"><div><b style="color:${d.saldo_pendiente ? "var(--rojo)" : "var(--verde)"}">${d.saldo_pendiente ? fmtCOP(d.saldo_pendiente) : "Al día"}</b><span>Por pagar</span></div><div><b>${d.total}</b><span>Multas en total</span></div></div>`;
   if (!lista.length) return cab + vacio("ok", "No tiene multas", "Este usuario está a paz y salvo.");
-  return cab + `<div class="tabla-env"><table><thead><tr><th>Fecha</th><th>Motivo</th><th>Valor</th><th>Estado</th></tr></thead><tbody>
-    ${lista.map((m) => `<tr><td class="tenue nw">${fmtFecha(m.fecha)}</td><td>${esc(m.motivo)}<div style="margin-top:3px"><span class="distintivo ${m.origen === "MANUAL" ? "d-tinta" : "d-aviso"}">${m.origen === "MANUAL" ? "Otro motivo" : "Por retraso"}</span></div></td>
+  return cab + `<div class="tabla-env"><table><thead><tr><th>Fecha</th><th>Motivo</th><th>Valor</th><th>Estado</th><th></th></tr></thead><tbody>
+    ${lista.map((m) => `<tr><td class="tenue nw">${fmtFecha(m.fecha)}</td><td>${esc(m.motivo)}<div style="margin-top:3px"><span class="distintivo ${m.origen === "MANUAL" ? "d-tinta" : "d-aviso"}">${m.origen === "MANUAL" ? "Otro motivo" : "Por retraso"}</span>${codigo(m.id)}</div></td>
       <td class="nw"><b>${fmtCOP(m.monto)}</b></td>
-      <td><span class="distintivo ${m.estado === "PENDIENTE" ? "d-mal" : "d-ok"}">${m.estado === "PENDIENTE" ? "Pendiente" : esc(m.estado)}</span></td></tr>`).join("")}</tbody></table></div>
+      <td data-et="Estado"><span class="distintivo ${m.estado === "PENDIENTE" ? "d-mal" : "d-ok"}">${m.estado === "PENDIENTE" ? "Pendiente" : "Pagada"}</span>${m.fecha_pago ? `<span class="relativo">pagada el ${fmtFecha(m.fecha_pago)}</span>` : ""}</td>
+      <td class="acc">${m.estado === "PENDIENTE" ? `<button class="boton peq" data-pagar="${esc(m.id)}" data-usuario="${esc(d.usuario_id)}" data-monto="${esc(String(m.monto))}" data-motivo="${esc(m.motivo)}" title="Registrar el pago de esta multa">${icono("ok")}<span class="ocultar-movil">Pagar</span></button>` : ""}</td></tr>`).join("")}</tbody></table></div>
     <div style="margin-top:8px">${fuenteBadge(d._fuente)}</div>`;
+}
+function enlazarAccionesMulta(cont, despues) {
+  if (!cont) return;
+  cont.querySelectorAll("[data-pagar]").forEach((b) => {
+    b.onclick = (e) => { e.preventDefault(); pagarMulta(b, despues); };
+  });
+}
+async function pagarMulta(boton, despues) {
+  const id = boton.dataset.pagar, monto = Number(boton.dataset.monto), motivo = boton.dataset.motivo;
+  if (!await confirmar("Pagar multa", `¿Registrar el pago de <b>${fmtCOP(monto)}</b> por «${esc(motivo)}»?<br><span class="tenue" style="display:inline">Si no le queda saldo pendiente, el usuario podrá volver a llevarse libros.</span>`, "Pagar", { peligro: false })) return;
+  await conCarga(boton, async () => {
+    try {
+      await api("POST", `/multas/${enc(id)}/pagar`);
+      toast("exito", "Multa pagada", `Se registró el pago de ${fmtCOP(monto)}.`);
+      await refrescarDatos();
+      if (despues) await despues();
+    } catch (err) { errorToast(err, "No se pudo registrar el pago"); }
+  });
 }
 const MONTO_MULTA_MIN = 1000, MONTO_MULTA_MAX = 500000, MONTO_MULTA_PASO = 1000;
 function digitosMonto(texto) { return String(texto || "").replace(/\D/g, ""); }
@@ -2038,8 +2065,10 @@ $("form-multa").onsubmit = async (e) => {
 // GET /usuarios/{id}/multas
 async function verMultas(uid) {
   const cont = $("multas-resultado"); cont.innerHTML = cargando();
-  try { cont.innerHTML = `<div style="margin-top:14px">${tablaMultas(await api("GET", `/usuarios/${enc(uid)}/multas`))}</div>`; }
-  catch (e) { cont.innerHTML = errorBloque(e); }
+  try {
+    cont.innerHTML = `<div style="margin-top:14px">${tablaMultas(await api("GET", `/usuarios/${enc(uid)}/multas`))}</div>`;
+    enlazarAccionesMulta(cont, () => { verMultas(uid); cargarMultas(); });
+  } catch (e) { cont.innerHTML = errorBloque(e); }
 }
 
 // ── SISTEMA (conexión, servicios y caché) ──────────────────────────

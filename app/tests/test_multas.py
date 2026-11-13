@@ -159,3 +159,85 @@ def test_eliminar_usuario_borra_sus_multas(usuario):
     multar(usuario)
     _, cuerpo = usuario("DELETE", "/usuarios/{id}", id="ana")
     assert cuerpo["multas_eliminadas"] == 1
+
+
+# ── POST /multas/{id}/pagar ───────────────────────────────────────────
+
+def test_pagar_multa_saldia_y_permite_prestar(usuario, tabla_dynamodb):
+    con_prestamo_devuelto(usuario)
+    _, multa = multar(usuario, monto=2000)
+    status, pagada = usuario("POST", "/multas/{id}/pagar", id=multa["id"])
+    assert status == 200
+    assert pagada["estado"] == "PAGADA" and pagada["fecha_pago"]
+    assert pagada["id"] == multa["id"]
+    perfil = tabla_dynamodb.get_item(Key={"PK": "USER#ana", "SK": "PROFILE"})["Item"]
+    assert perfil["saldo_multas"] == 0
+    _, lista = usuario("GET", "/usuarios/{id}/multas", id="ana")
+    assert lista["saldo_pendiente"] == 0 and lista["multas"][0]["estado"] == "PAGADA"
+    # Ya puede volver a llevarse un libro.
+    usuario("POST", "/items", body={"id": "l-despues", "titulo": "T", "autor": "A"})
+    status, prestamo = usuario("POST", "/prestamos", body={"usuario_id": "ana", "item_id": "l-despues"})
+    assert status == 201 and prestamo["estado"] == "ACTIVO"
+
+
+def test_pagar_multa_ya_pagada_es_idempotente(usuario, tabla_dynamodb):
+    con_prestamo_devuelto(usuario)
+    _, multa = multar(usuario, monto=2000)
+    _, primera = usuario("POST", "/multas/{id}/pagar", id=multa["id"])
+    status, segunda = usuario("POST", "/multas/{id}/pagar", id=multa["id"])
+    assert status == 200
+    assert segunda["estado"] == "PAGADA" and segunda["fecha_pago"] == primera["fecha_pago"]
+    perfil = tabla_dynamodb.get_item(Key={"PK": "USER#ana", "SK": "PROFILE"})["Item"]
+    assert perfil["saldo_multas"] == 0   # no se descuenta dos veces
+
+
+def test_pagar_multa_inexistente_404(usuario):
+    assert usuario("POST", "/multas/{id}/pagar", id="nope")[0] == 404
+
+
+def test_pagar_multa_invalida_cache(usuario, redis_fake):
+    con_prestamo_devuelto(usuario)
+    _, multa = multar(usuario, monto=2000)
+    usuario("GET", "/usuarios/{id}/multas", id="ana")
+    usuario("GET", "/usuarios/{id}", id="ana")
+    usuario("POST", "/multas/{id}/pagar", id=multa["id"])
+    assert redis_fake.get(cache.cache_key_multas_usuario("ana")) is None
+    _, perfil = usuario("GET", "/usuarios/{id}", id="ana")
+    assert perfil["_fuente"] == "dynamodb" and perfil["saldo_multas"] == 0
+
+
+# ── Idempotencia de POST /multas ──────────────────────────────────────
+
+def test_crear_multa_con_misma_idempotency_key_no_duplica(usuario, tabla_dynamodb):
+    con_prestamo_devuelto(usuario)
+    headers = {"Content-Type": "application/json", "Idempotency-Key": "multa-ana-1"}
+    s1, m1 = usuario("POST", "/multas", body={"usuario_id": "ana", "monto": 2000,
+                                              "motivo": "Libro dañado"}, headers=headers)
+    s2, m2 = usuario("POST", "/multas", body={"usuario_id": "ana", "monto": 2000,
+                                              "motivo": "Libro dañado"}, headers=headers)
+    assert s1 == s2 == 201 and m1["id"] == m2["id"]
+    fines = tabla_dynamodb.query(KeyConditionExpression="PK = :pk AND begins_with(SK, :sk)",
+                                 ExpressionAttributeValues={":pk": "USER#ana", ":sk": "FINE#"})["Items"]
+    assert len(fines) == 1
+    perfil = tabla_dynamodb.get_item(Key={"PK": "USER#ana", "SK": "PROFILE"})["Item"]
+    assert perfil["saldo_multas"] == 2000
+
+
+def test_multa_duplicada_mismo_prestamo_y_motivo_409(usuario):
+    prestamo = con_prestamo_devuelto(usuario)
+    assert multar(usuario, prestamo_id=prestamo["id"], motivo="Libro dañado")[0] == 201
+    status, cuerpo = multar(usuario, prestamo_id=prestamo["id"], motivo="Libro dañado")
+    assert status == 409 and "mismo motivo" in cuerpo["error"]
+    # Otro motivo sobre el mismo préstamo sí se admite.
+    assert multar(usuario, prestamo_id=prestamo["id"], motivo="Páginas rotas", monto=1000)[0] == 201
+
+
+def test_idempotency_key_invalida_400(usuario):
+    con_prestamo_devuelto(usuario)
+    status, cuerpo = usuario(
+        "POST", "/multas",
+        body={"usuario_id": "ana", "monto": 2000, "motivo": "x"},
+        headers={"Content-Type": "application/json", "Idempotency-Key": "clave con espacios"},
+    )
+    assert status == 400 and "Idempotency-Key" in cuerpo["error"]
+

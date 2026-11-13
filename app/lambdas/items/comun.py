@@ -10,7 +10,7 @@ import os
 import re
 import unicodedata
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, TypeAlias
 
@@ -44,8 +44,14 @@ def tabla() -> Any:
     return dynamodb.Table(TABLE_NAME)
 
 
+# Colombia no observa horario de verano: UTC-5 todo el año.
+# Offset fijo, sin zoneinfo/tzdata, para que Lambda no dependa de una zona IANA.
+TZ_COLOMBIA: timezone = timezone(timedelta(hours=-5))
+
+
 def ahora() -> datetime:
-    return datetime.now(timezone.utc)
+    """Fecha y hora actuales en América/Bogotá (UTC-5)."""
+    return datetime.now(TZ_COLOMBIA)
 
 
 def ahora_iso() -> str:
@@ -53,7 +59,7 @@ def ahora_iso() -> str:
 
 
 def hoy() -> date:
-    """Fecha actual (UTC). Los tests la reemplazan para simular vencimientos."""
+    """Fecha actual en Colombia (UTC-5). Los tests la reemplazan para simular vencimientos."""
     return ahora().date()
 
 
@@ -206,3 +212,87 @@ def query_completa(**parametros: Any) -> list[Item]:
 def es_cancelada(e: Exception) -> bool:
     """True si el error es una transacción cancelada por una condición."""
     return getattr(e, "response", {}).get("Error", {}).get("Code") == "TransactionCanceledException"
+
+
+# ── Idempotencia (header Idempotency-Key) ─────────────────────────────
+# Se guarda un ítem PK=IDEM#<operacion>#<clave> con la respuesta original.
+# Un reintento con la misma clave (Put condicional) devuelve esa respuesta
+# en vez de crear otro préstamo o multa. Es el patrón que usan las APIs
+# para que un retry de red no deje duplicados.
+
+PATRON_IDEMPOTENCIA: re.Pattern[str] = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+
+
+def header(event: dict[str, Any], nombre: str) -> str | None:
+    """Lee un header sin importar mayúsculas (API Gateway puede cambiarlas)."""
+    for k, v in (event.get("headers") or {}).items():
+        if k.lower() == nombre.lower():
+            return v
+    return None
+
+
+def leer_idempotency_key(event: dict[str, Any]) -> str | None:
+    """Idempotency-Key opcional. None si no viene; 400 si el valor no es válido."""
+    crudo = header(event, "Idempotency-Key")
+    if crudo is None or not str(crudo).strip():
+        return None
+    clave = str(crudo).strip()
+    if not PATRON_IDEMPOTENCIA.match(clave):
+        raise ErrorApi(
+            400,
+            "El header 'Idempotency-Key' solo admite letras, números, '.', '-' y '_' (máx. 128)",
+        )
+    return clave
+
+
+def clave_idempotencia(operacion: str, clave: str) -> dict[str, str]:
+    return {"PK": f"IDEM#{operacion}#{clave}", "SK": "METADATA"}
+
+
+def item_idempotencia(operacion: str, clave: str, status: int, cuerpo: dict[str, Any]) -> Item:
+    return {
+        **clave_idempotencia(operacion, clave),
+        "tipo": "IDEMPOTENCIA",
+        "operacion": operacion,
+        "clave": clave,
+        "status": status,
+        "cuerpo": cuerpo,
+        "creado_en": ahora_iso(),
+    }
+
+
+def obtener_idempotencia(operacion: str, clave: str) -> Item | None:
+    return tabla().get_item(Key=clave_idempotencia(operacion, clave)).get("Item")
+
+
+def respuesta_idempotente(event: dict[str, Any], operacion: str) -> tuple[str | None, RespuestaApi | None]:
+    """
+    Si el cliente envía Idempotency-Key y ya se atendió esa clave, retorna
+    (clave, respuesta original). Si la clave es nueva, (clave, None).
+    Si no hay header, (None, None).
+    """
+    clave = leer_idempotency_key(event)
+    if not clave:
+        return None, None
+    previo = obtener_idempotencia(operacion, clave)
+    if not previo:
+        return clave, None
+    return clave, respuesta(int(previo["status"]), desde_dynamo(previo["cuerpo"]))
+
+
+def put_idempotencia(operacion: str, clave: str, status: int, cuerpo: dict[str, Any]) -> dict[str, Any]:
+    """Put condicional para incluir en la misma TransactWriteItems de la operación."""
+    return {"Put": {
+        "TableName": TABLE_NAME,
+        "Item": item_idempotencia(operacion, clave, status, cuerpo),
+        "ConditionExpression": "attribute_not_exists(PK)",
+    }}
+
+
+def recuperar_idempotencia(operacion: str, clave: str) -> RespuestaApi | None:
+    """Tras una transacción cancelada, si la clave ya existía, devuelve la respuesta guardada."""
+    previo = obtener_idempotencia(operacion, clave)
+    if not previo:
+        return None
+    return respuesta(int(previo["status"]), desde_dynamo(previo["cuerpo"]))
+

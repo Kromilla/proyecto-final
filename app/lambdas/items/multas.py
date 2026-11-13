@@ -2,6 +2,7 @@
 multas.py — Multas de los usuarios (rutas /multas y /usuarios/{id}/multas)
 ─────────────────────────────────────────────────────────────────────────
   POST /multas                 Registrar multa manual   TransactWriteItems + invalidación
+  POST /multas/{id}/pagar      Saldar una multa         TransactWriteItems + invalidación
   GET  /usuarios/{id}/multas   Multas del usuario       Query por PK + Cache-Aside
 
 Ítem en la tabla (misma partición del usuario):
@@ -76,9 +77,26 @@ def invalidar(usuario_id: str) -> None:
                        cache.cache_key_multas_usuario(usuario_id))
 
 
+def buscar(multa_id: str) -> Item | None:
+    items = tabla().query(
+        IndexName="GSI1",
+        KeyConditionExpression=Key("GSI1PK").eq(f"MULTA#{multa_id}"),
+    ).get("Items", [])
+    return items[0] if items else None
+
+
+def clave_multa_unica(usuario_id: str, prestamo_id: str, motivo: str) -> dict[str, str]:
+    """Impide una segunda multa manual del mismo préstamo y motivo."""
+    return {"PK": f"USER#{usuario_id}",
+            "SK": f"FINEUNIQUE#{prestamo_id}#{comun.normalizar(motivo)[:200]}"}
+
+
 def crear(event: dict[str, Any]) -> RespuestaApi:
     """POST /multas. Multa manual. La de retraso la crea prestamos.devolver."""
     import prestamos   # import local: prestamos también importa este módulo
+    clave_idem, repetida = comun.respuesta_idempotente(event, "multas")
+    if repetida:
+        return repetida
     datos = leer_json(event)
     if "usuario_id" not in datos:
         raise ErrorApi(400, "Falta el campo obligatorio 'usuario_id'")
@@ -126,10 +144,26 @@ def crear(event: dict[str, Any]) -> RespuestaApi:
             "Key": {"PK": prestamo["PK"], "SK": prestamo["SK"]},
             "ConditionExpression": "attribute_exists(PK)",
         }})
+    if prestamo_id:
+        operaciones.append({"Put": {
+            "TableName": TABLE_NAME,
+            "Item": {**clave_multa_unica(usuario_id, prestamo_id, motivo),
+                     "tipo": "FINEUNIQUE", "multa_id": multa["id"]},
+            "ConditionExpression": "attribute_not_exists(PK)",
+        }})
+    if clave_idem:
+        operaciones.append(comun.put_idempotencia("multas", clave_idem, 201, publico(multa)))
     try:
         comun.cliente().transact_write_items(TransactItems=operaciones)
     except ClientError as e:
         if es_cancelada(e):
+            if clave_idem:
+                repetida = comun.recuperar_idempotencia("multas", clave_idem)
+                if repetida:
+                    return repetida
+            if prestamo_id and tabla().get_item(
+                    Key=clave_multa_unica(usuario_id, prestamo_id, motivo)).get("Item"):
+                raise ErrorApi(409, "Ya existe una multa de este préstamo con el mismo motivo")
             if not usuarios.obtener_de_dynamodb(usuario_id):
                 raise ErrorApi(404, f"Usuario '{usuario_id}' no encontrado")
             raise ErrorApi(409, "No se pudo registrar la multa; intente de nuevo")
@@ -156,3 +190,49 @@ def listar(usuario_id: str) -> RespuestaApi:
     }
     cache.cache_set(clave, resultado)
     return respuesta(200, {**resultado, "_fuente": "dynamodb"})
+
+
+def pagar(multa_id: str) -> RespuestaApi:
+    """
+    POST /multas/{id}/pagar. Marca la multa como PAGADA, anota fecha_pago y
+    descuenta el monto de saldo_multas. Si ya estaba pagada, responde 200
+    con el mismo registro (idempotente).
+    """
+    multa = buscar(multa_id)
+    if not multa or multa.get("tipo") != "MULTA":
+        raise ErrorApi(404, f"Multa '{multa_id}' no encontrada")
+    if multa.get("estado") == "PAGADA":
+        return respuesta(200, publico(multa))
+
+    fecha_pago = comun.ahora().replace(microsecond=0).isoformat()
+    monto = int(multa["monto"])
+    usuario_id = multa["usuario_id"]
+    try:
+        comun.cliente().transact_write_items(TransactItems=[
+            {"Update": {
+                "TableName": TABLE_NAME,
+                "Key": {"PK": multa["PK"], "SK": multa["SK"]},
+                "UpdateExpression": "SET estado = :pagada, fecha_pago = :fecha",
+                "ConditionExpression": "estado = :pendiente",
+                "ExpressionAttributeValues": {
+                    ":pagada": "PAGADA", ":pendiente": "PENDIENTE", ":fecha": fecha_pago,
+                },
+            }},
+            {"Update": {
+                "TableName": TABLE_NAME,
+                "Key": usuarios.clave_usuario(usuario_id),
+                "UpdateExpression": "SET saldo_multas = saldo_multas - :monto",
+                "ConditionExpression": "attribute_exists(PK) AND saldo_multas >= :monto",
+                "ExpressionAttributeValues": {":monto": monto},
+            }},
+        ])
+    except ClientError as e:
+        if not es_cancelada(e):
+            raise
+        actual = buscar(multa_id)
+        if actual and actual.get("estado") == "PAGADA":
+            return respuesta(200, publico(actual))
+        raise ErrorApi(409, "No se pudo registrar el pago; intente de nuevo")
+    invalidar(usuario_id)
+    return respuesta(200, {**publico(multa), "estado": "PAGADA", "fecha_pago": fecha_pago})
+

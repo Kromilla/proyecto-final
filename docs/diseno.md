@@ -1,7 +1,12 @@
 # Documento de diseño — Biblioteca serverless
 
 **Asignatura:** Bases de Datos NoSQL — Universidad del Magdalena
-**Integrantes:** Carlos Alfredo Ibañez Ortiz y Adriana Carolina Olivares Vásquez
+**Integrantes:**
+- Carlos Alfredo Ibañez Ortiz
+- Adriana Carolina Olivares Vásquez
+- Yineth Ávila Villalobos
+- Albert David Peña Artunduaga (2020214013)
+- Wilmar Arias Uribe (2022114107)
 
 > *En NoSQL no se diseñan tablas, se diseñan patrones de acceso.*
 
@@ -47,8 +52,9 @@ Se definieron **antes** de diseñar la tabla. Ninguno usa `Scan`.
 | AP25 | Reservar un libro agotado | `POST /reservas` | `TransactWriteItems` (libro, `ConditionCheck` usuario, reserva) + `RPUSH` |
 | AP26 | Cancelar una reserva | `DELETE /reservas/{id}` | `Query` GSI1 + `TransactWriteItems` + `LREM` |
 | AP27 | Fila de espera de un libro | `GET /items/{id}/reservas` | `Query` GSI3 (orden por `fecha_reserva`) + perfiles; `LRANGE` solo si coincide exactamente; si no, `DEL` + `RPUSH` |
-| AP28 | Registrar una multa | `POST /multas` | `TransactWriteItems` (multa + saldo del usuario) + `DEL` |
-| AP29 | Estado del caché | `GET /cache/stats` | `HGETALL`, `DBSIZE`, `SCAN` |
+| AP28 | Registrar una multa | `POST /multas` | `TransactWriteItems` (multa + saldo del usuario) + `DEL`; `Idempotency-Key` opcional; no se duplica la misma multa de un préstamo y motivo |
+| AP29 | Pagar una multa | `POST /multas/{id}/pagar` | `TransactWriteItems` (estado `PAGADA`, `fecha_pago`, descuento de `saldo_multas`) + `DEL` |
+| AP30 | Estado del caché | `GET /cache/stats` | `HGETALL`, `DBSIZE`, `SCAN` |
 
 ## 3. Modelo de la tabla (Single Table Design)
 
@@ -82,9 +88,9 @@ Ejemplo de datos:
 | `ITEM#cien-anios` | `METADATA` | titulo, autor, categoria=Novela, ejemplares=2, disponibles=0, prestados=2, reservas_pendientes=1 |
 | `CATEGORIA#NOVELA` | `METADATA` | nombre=Novela, libros=5 |
 | `USER#ana` | `PROFILE` | nombre, email, prestamos_activos=1, saldo_multas=3000 |
-| `USER#ana` | `LOAN#2026-11-10T20:00:00+00:00#cien-anios#9f3a…` | estado=ACTIVO, fecha_limite=2026-11-24, renovaciones=0 |
+| `USER#ana` | `LOAN#2026-11-10T15:00:00-05:00#cien-anios#9f3a…` | estado=ACTIVO, fecha_limite=2026-11-24, renovaciones=0 |
 | `USER#beto` | `RESV#cien-anios` | estado=PENDIENTE, fecha_reserva |
-| `USER#ana` | `FINE#2026-11-28T15:00:00+00:00#7c1e…` | monto=3000, origen=AUTOMATICA, estado=PENDIENTE |
+| `USER#ana` | `FINE#2026-11-28T10:00:00-05:00#7c1e…` | monto=3000, origen=AUTOMATICA, estado=PENDIENTE |
 
 Decisiones:
 
@@ -125,6 +131,11 @@ Decisiones:
 | No prestar sin ejemplares (`disponibles > 0`) | Condición del `UpdateItem` del libro en la transacción |
 | Máximo 3 préstamos activos por usuario | Condición `prestamos_activos < :max` |
 | No prestar si el usuario tiene multas pendientes (`saldo_multas > 0`) | Condición `saldo_multas <= :cero` en la transacción de `POST /prestamos` (409) |
+| Pagar una multa la deja en `PAGADA` con `fecha_pago` y descuenta el saldo | `POST /multas/{id}/pagar` (200; si ya estaba pagada, no se vuelve a descontar) |
+| Un usuario no tiene dos préstamos activos del mismo libro | Ítem `LOANACTIVO#<itemId>` con `Put` condicional (409) |
+| No se registra dos veces la misma multa manual de un préstamo y motivo | Ítem `FINEUNIQUE#<prestamoId>#<motivo>` con `Put` condicional (409) |
+| `POST /prestamos` y `POST /multas` no duplican un reintento | Header opcional `Idempotency-Key`: se guarda la respuesta con `Put` condicional y se devuelve en el retry |
+| Fechas y días de retraso en hora de Colombia | `comun.hoy()` y `comun.ahora()` usan UTC-5 (offset fijo) |
 | Una multa manual solo se registra si el usuario ha tenido al menos un préstamo | Lectura del historial `LOAN#` y `ConditionCheck` del préstamo en `POST /multas` (409) |
 | Monto de una multa manual: entre $1.000 y $500.000, en múltiplos de $1.000 | Validación de `POST /multas` (400) |
 | Plazo de 14 días (`DIAS_PRESTAMO`) | `fecha_limite` al prestar |
@@ -136,8 +147,10 @@ Decisiones:
 | No borrar libros con préstamos o reservas, ni usuarios con préstamos o reservas | Condiciones del `DeleteItem` y validación previa (409) |
 
 Las multas quedan registradas con estado `PENDIENTE` y se suman a
-`saldo_multas`; el pago de multas queda por fuera del alcance de este API.
-Mientras el saldo sea mayor que cero, `POST /prestamos` responde `409`.
+`saldo_multas`. `POST /multas/{id}/pagar` las marca como `PAGADA`, anota
+`fecha_pago` y descuenta el monto del saldo (si ya estaba pagada, responde
+`200` sin volver a descontar). Mientras el saldo sea mayor que cero,
+`POST /prestamos` responde `409`.
 `POST /multas` (multa manual) responde `409` si el usuario nunca ha tenido
 un préstamo, aunque `prestamo_id` sea opcional; si se envía, debe ser un
 préstamo válido de ese usuario.
@@ -193,7 +206,7 @@ Cliente (curl / Postman / frontend) ──HTTP :4566──▶ API Gateway (emula
                      ┌───────────────────────────────┴───────────┐
                      ▼                                           ▼
      Lambda ItemsHandler (Python 3.11)                 Lambda HealthHandler
-     27 rutas: libros · categorías · usuarios ·        (Python 3.11)
+     28 rutas: libros · categorías · usuarios ·        (Python 3.11)
      préstamos · reservas · multas · caché
         │                     │                          │          │
   redis-py :6379      boto3 (AWS_ENDPOINT_URL)         PING   DescribeTable
